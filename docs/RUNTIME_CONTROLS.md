@@ -49,6 +49,10 @@ startup, so changing one means restarting the process;
 `--prefill-chunk-tokens auto` resolves to the cap, 256, there, which allocates
 about 32.5 MB of prefill scratch against about 16.4 MB at the 128 default.
 
+Setting `TURBO_FIELDFARE_PHASES=1` makes the CLI print the decode phase split
+(`cb1`, expert I/O await, `cb2`, and GPU waits) after the timing footer. It is a
+diagnostic and does not change behavior.
+
 ### macOS interactivity mitigation
 
 Before the first Metal device is created, TurboFieldfare defaults

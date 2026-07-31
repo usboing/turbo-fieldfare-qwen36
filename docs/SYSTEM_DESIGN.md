@@ -443,6 +443,14 @@ and projector live in a separate companion pack, so an installation without
 that pack has the footprint it had before. The image tower requires M2 or
 newer; text-only inference remains available on M1. See [Images](#images).
 
+Qwen 3.6 35B-A3B is additionally supported as an experimental text-only second
+architecture, selected from `manifest.json -> arch.family`. It is a hybrid of
+30 gated-DeltaNet linear-attention layers and 10 gated full-attention layers,
+with 256 routed experts per layer and a gated shared expert. Its vision tower
+is not included. Acceptance evidence covers a 24 GB host at 4K context; it has
+not been validated on the 8 GB configuration that governs the Gemma path. See
+[Qwen 3.6 performance notes](QWEN36_PERFORMANCE.md).
+
 The Mac app offers 4K, 8K, 16K, 32K, and 64K context lengths. Manual acceptance
 covers the Mac app at 8K and CLI stress at 64K. Audio input, video input,
 training, fine-tuning, server batching, remote serving, and general model

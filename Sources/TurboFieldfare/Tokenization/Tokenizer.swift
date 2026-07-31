@@ -232,7 +232,6 @@ public struct GFTokenizer: @unchecked Sendable {
             try specials.insert(Self.int32ID(added.content.string() ?? "added token", id))
         }
         self.specialTokenIDs = specials
-
         let resolved = dialect == .chatml
             ? try Self.resolveChatMLTokens(tokenizer)
             : try Self.resolveGemmaTokens(tokenizer)
@@ -325,6 +324,14 @@ public struct GFTokenizer: @unchecked Sendable {
             thinkEndID: nil,
             stopTokenIDs: [eosID, endOfTurnID, toolResponseID],
             vocabSize: 262_144)
+    }
+
+    /// Resolves a token string to its ID, rejecting the unk-token fallback
+    /// some tokenizers substitute for out-of-vocabulary strings.
+    private static func specialTokenID(_ tokenizer: any Tokenizer, _ token: String) -> Int? {
+        guard let id = tokenizer.convertTokenToId(token),
+              tokenizer.convertIdToToken(id) == token else { return nil }
+        return id
     }
 
     private static func resolveChatMLTokens(

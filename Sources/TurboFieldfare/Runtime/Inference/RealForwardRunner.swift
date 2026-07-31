@@ -279,7 +279,9 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
         let silu = cfg.hiddenActivation == "silu"
         self.embedInt4 = try EmbedLookupInt4(context: context)
         self.rms       = try RMSNorm(context: context)
-        self.int4      = try DequantInt4GEMV(context: context)
+        self.int4      = try DequantInt4GEMV(
+            context: context,
+            additionalShapes: cfg.decodeInt4GEMVShapes)
         self.attention = try Attention(context: context)
         self.shared    = try SharedExpertRuntime(context: context,
                                                   weightBits: model.sharedExpertWeightBits,
@@ -330,7 +332,10 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
             self.gdnState = nil
         }
         self.rope = cfg.ropeNeoxSubdim ? try RoPE(context: context) : nil
-        self.int8ScalarGate = cfg.sharedExpertGated ? try DequantInt8GEMV(context: context) : nil
+        self.int8ScalarGate = cfg.sharedExpertGated
+            ? try DequantInt8GEMV(context: context,
+                                  additionalShapes: cfg.decodeInt8GEMVShapes)
+            : nil
 
         let device = context.device
         let D = cfg.hiddenSize

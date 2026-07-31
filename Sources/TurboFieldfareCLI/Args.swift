@@ -116,7 +116,7 @@ extension Args {
     }
 
     public static let usage = """
-    TurboFieldfareCLI — Gemma 4 26B-A4B text generation
+    TurboFieldfareCLI — Gemma 4 26B-A4B / Qwen3.6 35B-A3B text generation
 
     usage: TurboFieldfareCLI --model <dir>
            (--prompt <string> | --chat-prompt <string> | --messages-file <path>) [options]

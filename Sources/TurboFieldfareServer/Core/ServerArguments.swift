@@ -4,7 +4,10 @@ import TurboFieldfare
 public struct ServerArguments: Equatable, Sendable {
     public let model: String
     public let port: Int
-    public let modelID: String
+    /// Explicit --model-id value; nil defers to the loaded model's family
+    /// default (gemma-4-26b-a4b-it or qwen3.6-35b-a3b).
+    public let modelIDOverride: String?
+    public var modelID: String { modelIDOverride ?? "gemma-4-26b-a4b-it" }
     public let maxContext: Int
     public let queueLimit: Int
     public let promptCacheMode: ServerPromptCacheMode
@@ -15,6 +18,41 @@ public struct ServerArguments: Equatable, Sendable {
     public let rdadvisePolicy: RDAdvicePolicyMode
     public let visionPack: String?
     public let visionResidency: VisionResidencyPolicy
+
+    public init(model: String, port: Int, modelIDOverride: String?, maxContext: Int,
+                queueLimit: Int, promptCacheMode: ServerPromptCacheMode,
+                expertCacheSlots: Int, expertCachePolicy: RuntimeExpertCachePolicy,
+                prefillPolicy: RuntimePrefillPolicy, prefillChunkTokens: Int,
+                rdadvisePolicy: RDAdvicePolicyMode, visionPack: String?,
+                visionResidency: VisionResidencyPolicy) {
+        self.model = model
+        self.port = port
+        self.modelIDOverride = modelIDOverride
+        self.maxContext = maxContext
+        self.queueLimit = queueLimit
+        self.promptCacheMode = promptCacheMode
+        self.expertCacheSlots = expertCacheSlots
+        self.expertCachePolicy = expertCachePolicy
+        self.prefillPolicy = prefillPolicy
+        self.prefillChunkTokens = prefillChunkTokens
+        self.rdadvisePolicy = rdadvisePolicy
+        self.visionPack = visionPack
+        self.visionResidency = visionResidency
+    }
+
+    public init(model: String, port: Int, modelID: String, maxContext: Int,
+                queueLimit: Int, promptCacheMode: ServerPromptCacheMode,
+                expertCacheSlots: Int, expertCachePolicy: RuntimeExpertCachePolicy,
+                prefillPolicy: RuntimePrefillPolicy, prefillChunkTokens: Int,
+                rdadvisePolicy: RDAdvicePolicyMode, visionPack: String?,
+                visionResidency: VisionResidencyPolicy) {
+        self.init(model: model, port: port, modelIDOverride: modelID,
+                  maxContext: maxContext, queueLimit: queueLimit,
+                  promptCacheMode: promptCacheMode, expertCacheSlots: expertCacheSlots,
+                  expertCachePolicy: expertCachePolicy, prefillPolicy: prefillPolicy,
+                  prefillChunkTokens: prefillChunkTokens, rdadvisePolicy: rdadvisePolicy,
+                  visionPack: visionPack, visionResidency: visionResidency)
+    }
 
     public static let allowedMaxContext = [
         4_096, 8_192, 16_384, 32_768, 65_536, 98_304, 131_072, 196_608, 262_144,
@@ -29,7 +67,9 @@ public struct ServerArguments: Equatable, Sendable {
       --vision-residency <on-demand|keep-ready>
                                  Routed-expert residency during vision (default on-demand).
       --port <1...65535>         Loopback port (default 8080).
-      --model-id <id>            API model identifier (default gemma-4-26b-a4b-it).
+      --model-id <id>            API model identifier (default derived from the
+                                 installed model: gemma-4-26b-a4b-it or
+                                 qwen3.6-35b-a3b).
       --max-context <tokens>     4096, 8192, 16384, 32768, 65536, 98304,
                                  131072, 196608, or 262144 (default 16384).
                                  Contexts exceeding the host memory budget are refused.
@@ -95,7 +135,7 @@ public struct ServerArguments: Equatable, Sendable {
     ) throws -> ServerArguments {
         var model: String?
         var port = 8080
-        var modelID = "gemma-4-26b-a4b-it"
+        var modelIDOverride: String?
         var maxContext = 16_384
         var queueLimit = 4
         var promptCacheMode: ServerPromptCacheMode = .singlePrefix
@@ -127,7 +167,7 @@ public struct ServerArguments: Equatable, Sendable {
                 guard !value.isEmpty else {
                     throw ServerArgumentError.invalid("--model-id must not be empty")
                 }
-                modelID = value
+                modelIDOverride = value
             case "--max-context":
                 guard let parsed = Int(value),
                       allowedMaxContext.contains(parsed) else {
@@ -222,7 +262,7 @@ public struct ServerArguments: Equatable, Sendable {
         }
         return ServerArguments(model: model,
                                port: port,
-                               modelID: modelID,
+                               modelIDOverride: modelIDOverride,
                                maxContext: maxContext,
                                queueLimit: queueLimit,
                                promptCacheMode: promptCacheMode,

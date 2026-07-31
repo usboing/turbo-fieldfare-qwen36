@@ -41,6 +41,9 @@ struct GFDetokenizer {
     let skipSpecialTokens: Bool
     private let specialTokenIDs: Set<Int32>
     private let barrierTokenIDs: Set<Int32>
+    private let dialect: ChatDialect
+    private var chatMLIDs: [Int] = []
+    private var chatMLEmitted = ""
     /// In-flight byte-fallback run.
     private var run = ByteFallbackRun()
 
@@ -51,6 +54,7 @@ struct GFDetokenizer {
         self.skipSpecialTokens = skipSpecialTokens
         self.specialTokenIDs = tokenizer.specialTokenIDs
         self.barrierTokenIDs = barrierTokenIDs
+        self.dialect = tokenizer.dialect
     }
 
     /// Text contributed by `id`, ready to append to the stream.
@@ -59,6 +63,18 @@ struct GFDetokenizer {
     /// bytes come out with the token that closes the run, at a barrier marker,
     /// or at `flush()`.
     mutating func push(_ id: Int32) -> String {
+        if dialect == .chatml {
+            chatMLIDs.append(Int(id))
+            let current = tokenizer.decode(
+                tokens: chatMLIDs, skipSpecialTokens: skipSpecialTokens)
+            guard current.hasPrefix(chatMLEmitted) else {
+                chatMLEmitted = current
+                return ""
+            }
+            let delta = String(current.dropFirst(chatMLEmitted.count))
+            chatMLEmitted = current
+            return delta
+        }
         // An unknown ID contributes nothing and leaves the run open, matching
         // the library, whose decode compactMap-drops unresolvable IDs.
         guard let token = tokenizer.convertIdToToken(Int(id)) else { return "" }
@@ -71,6 +87,7 @@ struct GFDetokenizer {
 
     /// Remainder held back at a stop boundary.
     mutating func flush() -> String {
-        run.commit()
+        if dialect == .chatml { return "" }
+        return run.commit()
     }
 }

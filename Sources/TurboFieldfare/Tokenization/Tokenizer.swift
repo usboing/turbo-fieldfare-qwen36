@@ -10,6 +10,7 @@ public enum GFTokenizerError: Error, CustomStringConvertible {
     case unsupportedDecoder(actual: String)
     case invalidTokenID(token: String, id: Int)
     case specialTokenMismatch(token: String, expected: Int32, resolved: Int32)
+    case unsupportedForDialect(String)
 
     public var description: String {
         switch self {
@@ -27,11 +28,22 @@ public enum GFTokenizerError: Error, CustomStringConvertible {
         case .specialTokenMismatch(let token, let expected, let resolved):
             return "tokenizer resolves \(token) to \(resolved), but the runtime "
                 + "expects \(expected); the tokenizer does not match this build"
+        case .unsupportedForDialect(let operation):
+            return "operation is not supported for this tokenizer's chat dialect: \(operation)"
         }
     }
 }
 
-/// Gemma 4 tokenizer wrapper.
+/// Chat framing dialect, resolved from the loaded tokenizer's special tokens.
+///
+/// `.chatml` is detected by the presence of the `<|im_end|>` special token
+/// (Qwen-style ChatML); everything else uses the Gemma 4 contract.
+public enum ChatDialect: String, Sendable {
+    case gemma
+    case chatml
+}
+
+/// Tokenizer wrapper for the supported model families (Gemma 4 and ChatML/Qwen).
 ///
 /// Prefers tokenizer sidecars in a completed `.gturbo/tokenizer/` directory,
 /// then falls back to the IT variant's Hugging Face Hub tokenizer cache. Exposes
@@ -47,6 +59,9 @@ public struct GFTokenizer: @unchecked Sendable {
     public static let chatTemplateIdentity = "gemma4-it-text-no-tools-v1"
     public static let toolChatTemplateIdentity = "gemma4-it-tools-jinja-v1"
 
+    public let dialect: ChatDialect
+    /// Nominal BOS. For ChatML this is `<|endoftext|>` (the config's unused
+    /// `bos_token_id`); it is never prepended — see `encode(_:addBOS:)`.
     public let bosID: Int32
     public let eosID: Int32
     public let padID: Int32
@@ -55,8 +70,13 @@ public struct GFTokenizer: @unchecked Sendable {
     public let toolCallEndID: Int32
     public let toolResponseID: Int32
     public let toolResponseEndID: Int32
+    /// For ChatML these alias the `<think>` / `</think>` markers, the dialect's
+    /// closest analog of Gemma's hidden-channel delimiters.
     public let channelStartID: Int32
     public let channelEndID: Int32
+    /// ChatML `<think>` / `</think>` special-token IDs; nil for Gemma.
+    public let thinkStartID: Int32?
+    public let thinkEndID: Int32?
     public let stopTokenIDs: Set<Int32>
     public let vocabSize: Int
     /// The channel/tool markers that structure assistant output. Streaming
@@ -71,6 +91,10 @@ public struct GFTokenizer: @unchecked Sendable {
     /// `added_tokens[special == true]` set from `tokenizer.json`, identical to
     /// the filter the library's own decode applies before its decoder chain.
     let specialTokenIDs: Set<Int32>
+
+    /// BOS actually prepended by `encode(_:addBOS:)`; nil for dialects that
+    /// never use a BOS prefix (ChatML).
+    private let bosPrefixID: Int32?
 
     @usableFromInline
     let tokenizer: any Tokenizer
@@ -191,7 +215,13 @@ public struct GFTokenizer: @unchecked Sendable {
 
     public init(tokenizer: any Tokenizer, tokenizerData: Config) throws {
         self.tokenizer = tokenizer
-        try Self.verifyDecoderConfiguration(tokenizerData)
+
+        let imEndID = tokenizer.convertTokenToId(Self.imEndMark)
+        let dialect: ChatDialect = imEndID.flatMap(tokenizer.convertIdToToken) == Self.imEndMark
+            ? .chatml : .gemma
+        if dialect == .gemma {
+            try Self.verifyDecoderConfiguration(tokenizerData)
+        }
 
         // The same `added_tokens[special == true]` ID set the library's
         // `decode(skipSpecialTokens: true)` filters before running its decoder.
@@ -203,22 +233,65 @@ public struct GFTokenizer: @unchecked Sendable {
         }
         self.specialTokenIDs = specials
 
+        let resolved = dialect == .chatml
+            ? try Self.resolveChatMLTokens(tokenizer)
+            : try Self.resolveGemmaTokens(tokenizer)
+
+        self.dialect = dialect
+        self.bosID = resolved.bosID
+        self.bosPrefixID = resolved.bosPrefixID
+        self.eosID = resolved.eosID
+        self.padID = resolved.padID
+        self.endOfTurnID = resolved.endOfTurnID
+        self.toolCallStartID = resolved.toolCallStartID
+        self.toolCallEndID = resolved.toolCallEndID
+        self.toolResponseID = resolved.toolResponseID
+        self.toolResponseEndID = resolved.toolResponseEndID
+        self.channelStartID = resolved.channelStartID
+        self.channelEndID = resolved.channelEndID
+        self.thinkStartID = resolved.thinkStartID
+        self.thinkEndID = resolved.thinkEndID
+        self.stopTokenIDs = resolved.stopTokenIDs
+        self.vocabSize = resolved.vocabSize
+    }
+
+    private struct ResolvedSpecialTokens {
+        let bosID: Int32
+        let bosPrefixID: Int32?
+        let eosID: Int32
+        let padID: Int32
+        let endOfTurnID: Int32
+        let toolCallStartID: Int32
+        let toolCallEndID: Int32
+        let toolResponseID: Int32
+        let toolResponseEndID: Int32
+        let channelStartID: Int32
+        let channelEndID: Int32
+        let thinkStartID: Int32?
+        let thinkEndID: Int32?
+        let stopTokenIDs: Set<Int32>
+        let vocabSize: Int
+    }
+
+    private static func resolveGemmaTokens(
+        _ tokenizer: any Tokenizer
+    ) throws -> ResolvedSpecialTokens {
         guard let bos = tokenizer.bosTokenId else {
             throw GFTokenizerError.missingSpecialToken("<bos>")
         }
         guard let eos = tokenizer.eosTokenId else {
             throw GFTokenizerError.missingSpecialToken("<eos>")
         }
-        self.bosID = try Self.int32ID("<bos>", bos)
-        self.eosID = try Self.int32ID("<eos>", eos)
-        self.padID = try Self.requireTokenID(tokenizer, "<pad>")
-        self.endOfTurnID = try Self.requireTokenID(tokenizer, "<turn|>")
-        self.toolCallStartID = try Self.requireTokenID(tokenizer, "<|tool_call>")
-        self.toolCallEndID = try Self.requireTokenID(tokenizer, "<tool_call|>")
-        self.toolResponseID = try Self.requireTokenID(tokenizer, "<|tool_response>")
-        self.toolResponseEndID = try Self.requireTokenID(tokenizer, "<tool_response|>")
-        self.channelStartID = try Self.requireTokenID(tokenizer, "<|channel>")
-        self.channelEndID = try Self.requireTokenID(tokenizer, "<channel|>")
+        let bosID = try Self.int32ID("<bos>", bos)
+        let eosID = try Self.int32ID("<eos>", eos)
+        let padID = try Self.requireTokenID(tokenizer, "<pad>")
+        let endOfTurnID = try Self.requireTokenID(tokenizer, "<turn|>")
+        let toolCallStartID = try Self.requireTokenID(tokenizer, "<|tool_call>")
+        let toolCallEndID = try Self.requireTokenID(tokenizer, "<tool_call|>")
+        let toolResponseID = try Self.requireTokenID(tokenizer, "<|tool_response>")
+        let toolResponseEndID = try Self.requireTokenID(tokenizer, "<tool_response|>")
+        let channelStartID = try Self.requireTokenID(tokenizer, "<|channel>")
+        let channelEndID = try Self.requireTokenID(tokenizer, "<channel|>")
         // The image markers are compile-time constants on the renderer because
         // prompt layout code references them without a tokenizer in hand, but
         // they must still describe THIS vocabulary: a tokenizer revision that
@@ -236,8 +309,59 @@ public struct GFTokenizer: @unchecked Sendable {
                     token: token, expected: expected, resolved: resolved)
             }
         }
-        self.stopTokenIDs = [self.eosID, self.endOfTurnID, self.toolResponseID]
-        self.vocabSize = 262_144
+        return ResolvedSpecialTokens(
+            bosID: bosID,
+            bosPrefixID: bosID,
+            eosID: eosID,
+            padID: padID,
+            endOfTurnID: endOfTurnID,
+            toolCallStartID: toolCallStartID,
+            toolCallEndID: toolCallEndID,
+            toolResponseID: toolResponseID,
+            toolResponseEndID: toolResponseEndID,
+            channelStartID: channelStartID,
+            channelEndID: channelEndID,
+            thinkStartID: nil,
+            thinkEndID: nil,
+            stopTokenIDs: [eosID, endOfTurnID, toolResponseID],
+            vocabSize: 262_144)
+    }
+
+    private static func resolveChatMLTokens(
+        _ tokenizer: any Tokenizer
+    ) throws -> ResolvedSpecialTokens {
+        func id(_ token: String) throws -> Int32 {
+            try Self.requireTokenID(tokenizer, token)
+        }
+        // `<|im_start|>` is required even though no stored property holds it;
+        // template rendering relies on the tokenizer recognizing its text.
+        _ = try id(Self.imStartMark)
+        let imEnd = try id(Self.imEndMark)
+        let endOfText = try id("<|endoftext|>")
+        let toolCallStart = try id("<tool_call>")
+        let toolCallEnd = try id("</tool_call>")
+        let toolResponse = try id("<tool_response>")
+        let toolResponseEnd = try id("</tool_response>")
+        let thinkStart = try id("<think>")
+        let thinkEnd = try id("</think>")
+        return ResolvedSpecialTokens(
+            bosID: endOfText,
+            bosPrefixID: nil,
+            eosID: endOfText,
+            padID: endOfText,
+            endOfTurnID: imEnd,
+            toolCallStartID: toolCallStart,
+            toolCallEndID: toolCallEnd,
+            toolResponseID: toolResponse,
+            toolResponseEndID: toolResponseEnd,
+            channelStartID: thinkStart,
+            channelEndID: thinkEnd,
+            thinkStartID: thinkStart,
+            thinkEndID: thinkEnd,
+            stopTokenIDs: [imEnd, endOfText],
+            // The model's padded embedding/lm_head row count, not the
+            // tokenizer's actual vocab (248 077) — logits buffers use this.
+            vocabSize: 248_320)
     }
 
     /// Encode UTF-8 text to token IDs. `addBOS = true` prepends `<bos>`.
@@ -245,10 +369,12 @@ public struct GFTokenizer: @unchecked Sendable {
     /// The library's `addSpecialTokens: true` flag is a no-op for the Gemma 4 IT
     /// tokenizer (its config has `add_bos_token = false`; BOS is expected to come
     /// from the chat template). We prepend manually so the kernel-facing API stays
-    /// the same regardless of upstream defaults.
+    /// the same regardless of upstream defaults. ChatML has no BOS, so `addBOS`
+    /// is a no-op for that dialect.
     public func encode(_ text: String, addBOS: Bool = true) -> [Int32] {
         let base = tokenizer.encode(text: text, addSpecialTokens: false).map(Int32.init)
-        return addBOS ? [bosID] + base : base
+        guard addBOS, let bosPrefixID else { return base }
+        return [bosPrefixID] + base
     }
 
     /// Decode token IDs to text. `skipSpecialTokens` strips BOS/EOS/turn markers from the output.
@@ -260,6 +386,10 @@ public struct GFTokenizer: @unchecked Sendable {
     /// breaking `decode(encode(x)) == x`. Batch decode is a push-loop over
     /// `GFDetokenizer`, so batch and streaming decode agree by construction.
     public func decode(_ ids: [Int32], skipSpecialTokens: Bool = true) -> String {
+        if dialect == .chatml {
+            return tokenizer.decode(
+                tokens: ids.map(Int.init), skipSpecialTokens: skipSpecialTokens)
+        }
         var detok = GFDetokenizer(tokenizer: self, skipSpecialTokens: skipSpecialTokens)
         var text = ""
         for id in ids {
@@ -323,14 +453,27 @@ public struct GFTokenizer: @unchecked Sendable {
         }
     }
 
-    /// Text-only, no-tool rendering of the pinned IT checkpoint's bundled
+    /// Text-only, no-tool rendering of the pinned checkpoint's bundled
     /// `chat_template.jinja`, with thinking disabled. Keeping this narrow makes
     /// unsupported tool/media behavior explicit instead of approximating it.
     private static let turnOpen    = "<|turn>"
     private static let turnClose   = "<turn|>"
     private static let bosMark     = "<bos>"
+    private static let imStartMark = "<|im_start|>"
+    private static let imEndMark   = "<|im_end|>"
+    /// Generation prompt with thinking disabled, matching the Jinja template's
+    /// `add_generation_prompt` + `enable_thinking=false` branch.
+    private static let chatMLGenerationSuffix =
+        "<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
     public func applyChatTemplate(_ messages: [Message]) throws -> String {
+        switch dialect {
+        case .gemma: return try gemmaChatTemplate(messages)
+        case .chatml: return try chatMLChatTemplate(messages)
+        }
+    }
+
+    private func gemmaChatTemplate(_ messages: [Message]) throws -> String {
         var s = Self.bosMark
         for (index, message) in messages.enumerated() {
             guard let rawContent = message.content else {
@@ -344,6 +487,22 @@ public struct GFTokenizer: @unchecked Sendable {
             s += Self.turnOpen + role + "\n" + content + Self.turnClose + "\n"
         }
         s += Self.turnOpen + "model\n<|channel>thought\n<channel|>"
+        return s
+    }
+
+    private func chatMLChatTemplate(_ messages: [Message]) throws -> String {
+        var s = ""
+        for (index, message) in messages.enumerated() {
+            guard let rawContent = message.content else {
+                throw GFTokenizerError.invalidChatTemplate("text-only messages require content")
+            }
+            let content = rawContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            if message.role == .system && index != 0 {
+                throw GFTokenizerError.invalidChatTemplate("system message must be first")
+            }
+            s += Self.imStartMark + message.role.rawValue + "\n" + content + Self.imEndMark + "\n"
+        }
+        s += Self.chatMLGenerationSuffix
         return s
     }
 
@@ -396,10 +555,18 @@ public struct GFTokenizer: @unchecked Sendable {
 
     public func encodeTextContinuation(userContent: String) -> [Int32] {
         let content = userContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        return [endOfTurnID] + encode(
-            "\n\(Self.turnOpen)user\n\(content)\(Self.turnClose)\n"
-                + "\(Self.turnOpen)model\n<|channel>thought\n<channel|>",
-            addBOS: false)
+        switch dialect {
+        case .gemma:
+            return [endOfTurnID] + encode(
+                "\n\(Self.turnOpen)user\n\(content)\(Self.turnClose)\n"
+                    + "\(Self.turnOpen)model\n<|channel>thought\n<channel|>",
+                addBOS: false)
+        case .chatml:
+            return [endOfTurnID] + encode(
+                "\n\(Self.imStartMark)user\n\(content)\(Self.imEndMark)\n"
+                    + Self.chatMLGenerationSuffix,
+                addBOS: false)
+        }
     }
 
     /// A user turn carrying images, encoded as a continuation onto an existing
@@ -501,6 +668,13 @@ public struct GFTokenizer: @unchecked Sendable {
         incomingMessages: [Message],
         tools: [FunctionDefinition]
     ) throws -> [Int32] {
+        // The ChatML template's `<think>` stripping depends on each assistant
+        // turn's position relative to the last user query, so a re-rendered
+        // prefix is not guaranteed to be a token prefix of the full render.
+        // Callers (ServerPromptCache) fall back to prefix matching.
+        guard dialect == .gemma else {
+            throw GFTokenizerError.unsupportedForDialect("tool-result KV continuation")
+        }
         let prefix = try encodeToolChat(
             messages: cachedMessages + [assistant],
             tools: tools)

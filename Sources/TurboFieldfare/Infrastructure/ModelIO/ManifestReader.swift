@@ -265,7 +265,11 @@ public enum ManifestReader {
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw ModelError.partialInstall(path: directoryURL.path)
         }
-        let size = try metadataFileSize(manifestURL, fileName: "manifest.json")
+        let values = try manifestURL.resourceValues(forKeys: [.fileSizeKey])
+        guard let fileSize = values.fileSize, fileSize >= 0 else {
+            throw ModelError.indexCorrupt(detail: "manifest.json size unavailable")
+        }
+        let size = UInt64(fileSize)
         guard size <= maxBytes else {
             throw ModelError.indexCorrupt(
                 detail: "manifest.json size \(size) exceeds metadata cap \(maxBytes)")
@@ -313,7 +317,20 @@ private extension ManifestArch {
                   tieWordEmbeddings: wire.tieWordEmbeddings,
                   attentionKEqV: wire.attentionKEqV,
                   hiddenActivation: wire.hiddenActivation,
-                  fullAttentionLayerMask: wire.fullAttentionLayerMask)
+                  fullAttentionLayerMask: wire.fullAttentionLayerMask,
+                  family: wire.family,
+                  attnOutputGate: wire.attnOutputGate,
+                  attentionScale: wire.attentionScale,
+                  embeddingScaledBySqrtHidden: wire.embeddingScaledBySqrtHidden,
+                  routerScaled: wire.routerScaled,
+                  ffnSandwichNorms: wire.ffnSandwichNorms,
+                  sharedExpertGated: wire.sharedExpertGated,
+                  ropeNeoxSubdim: wire.ropeNeoxSubdim,
+                  linearNumKHeads: wire.linearNumKHeads,
+                  linearNumVHeads: wire.linearNumVHeads,
+                  linearKeyHeadDim: wire.linearKeyHeadDim,
+                  linearValueHeadDim: wire.linearValueHeadDim,
+                  linearConvKernelSize: wire.linearConvKernelSize)
     }
 }
 

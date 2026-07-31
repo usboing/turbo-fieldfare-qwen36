@@ -443,22 +443,26 @@ and projector live in a separate companion pack, so an installation without
 that pack has the footprint it had before. The image tower requires M2 or
 newer; text-only inference remains available on M1. See [Images](#images).
 
-Qwen 3.6 35B-A3B is additionally supported as an experimental text-only second
+Qwen 3.6 35B-A3B is a first-class text-only second
 architecture, selected from `manifest.json -> arch.family`. It is a hybrid of
 30 gated-DeltaNet linear-attention layers and 10 gated full-attention layers,
 with 256 routed experts per layer and a gated shared expert. Its vision tower
-is not included. It holds the same bounded-memory contract: a
-measured 1.52 GB peak process footprint at 4K context, verified under an
-emulated 8 GB machine, with every resident component equal to or smaller than
-the Gemma path's. Its install needs about 19.6 GB of disk against Gemma's
-14.3 GB. Acceptance evidence covers 4K context on a 24 GB host and the same
-host constrained to 8 GB. See
-[Qwen 3.6 performance notes](QWEN36_PERFORMANCE.md).
+is not included. It holds the same bounded-memory contract as Gemma 4 and uses
+less: a measured 1,448 MiB peak process footprint at 4K context against Gemma's
+~2,126 MiB, because its experts are half the size and only a quarter of its
+layers keep a KV cache. That was verified with the working set constrained to
+about 8 GB. Its install needs about 19.6 GB of disk against Gemma's 14.3 GB.
+Acceptance evidence covers 4K context. See
+[Qwen 3.6 performance notes](QWEN36_PERFORMANCE.md) and
+[Benchmarks](BENCHMARKS.md#qwen-36-35b-a3b-measured-decode).
 
 The Mac app offers 4K, 8K, 16K, 32K, and 64K context lengths. Manual acceptance
 covers the Mac app at 8K and CLI stress at 64K. Audio input, video input,
 training, fine-tuning, server batching, remote serving, and general model
-support are outside the current scope. The optional HTTP server is loopback-only, owns one
+outside the current scope. The runtime supports the two architectures above by
+explicit enumeration — each with its own pinned checkpoint, compile-time
+baseline, and manifest contract — rather than by discovering arbitrary
+checkpoints. The optional HTTP server is loopback-only, owns one
 warm model, serializes generation, and retains one verified conversational KV
 prefix by default. It retains only that prefix. See the
 [local server guide](OPENAI_SERVER.md).

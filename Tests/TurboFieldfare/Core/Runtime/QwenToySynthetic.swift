@@ -142,7 +142,9 @@ enum QwenToySynthetic {
             nameAbsOffsets.append(UInt32(stringTableBase + cursor))
             cursor += n.utf8.count
         }
-        let indexBytes = UInt64(stringTableBase + stringTable.count)
+        let rawIndexBytes = UInt64(stringTableBase + stringTable.count)
+        let alignment = GTurboBinary.alignmentBytes
+        let indexBytes = ((rawIndexBytes + alignment - 1) / alignment) * alignment
 
         var entries: [ResidentEntry] = []
         entries.reserveCapacity(specs.count)
@@ -356,6 +358,10 @@ enum QwenToySynthetic {
             "linearValueHeadDim": la.valueHeadDim,
             "linearConvKernelSize": la.convKernelSize,
         ]
+        func quantSlot(_ weightBits: Int) -> [String: Any] {
+            ["weightBits": weightBits, "scheme": "affine", "scaleType": "BF16",
+             "biasType": "BF16", "groupSize": Quantization.groupSize]
+        }
         let manifestRoot: [String: Any] = [
             "magic": "GTURBO",
             "versionMajor": 1,
@@ -363,6 +369,9 @@ enum QwenToySynthetic {
             "flags": ["streamingPresent": true, "turboQuantKV": false, "aneSharedExpert": false],
             "modelID": "qwen-toy",
             "arch": archDict,
+            "quant": ["embedding": quantSlot(4), "attention": quantSlot(4),
+                      "router": quantSlot(8), "sharedExpert": quantSlot(8),
+                      "routedExpert": quantSlot(4)],
             "files": files,
             "expertsPerLayer": toy.numExperts,
             "numLayers": toy.numLayers,

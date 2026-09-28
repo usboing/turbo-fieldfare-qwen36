@@ -9,6 +9,7 @@ enum GTurboBinary {
 
     static let indexHeaderBytes = GTurboFormatV1.residentHeaderBytes
     static let indexEntryBytes = GTurboFormatV1.residentEntryBytes
+    static let alignmentBytes = GTurboFormatV1.alignmentBytes
 
     /// Write `IndexHeader { indexSize, residentSize, entryCount }` (24 bytes, LE).
     static func writeIndexHeader(into buf: UnsafeMutableRawPointer,

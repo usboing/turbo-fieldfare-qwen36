@@ -641,6 +641,26 @@ extension Model {
             }
         }
 
+        func requireBF16(_ name: String, shape: [UInt32]) throws {
+            guard shape.count <= 4, !shape.isEmpty,
+                  let entry = residentIndex.entries[name] else {
+                throw ModelError.indexCorrupt(detail: "missing required resident tensor \(name)")
+            }
+            let padded = shape + Array(repeating: 0, count: 4 - shape.count)
+            let count = try shape.reduce(UInt64(1)) {
+                try checkedMultiply($0, UInt64($1), field: name)
+            }
+            let expectedBytes = try checkedMultiply(
+                count, UInt64(MemoryLayout<UInt16>.size), field: name)
+            guard entry.dtype == GTurboFormatV1.DType.bf16.rawValue,
+                  [entry.shape.0, entry.shape.1, entry.shape.2, entry.shape.3] == padded,
+                  entry.sizeBytes == expectedBytes,
+                  entry.scaleOffset == 0, entry.scaleSize == 0,
+                  entry.biasOffset == 0, entry.biasSize == 0 else {
+                throw ModelError.indexCorrupt(detail: "\(name) does not match the required BF16 schema")
+            }
+        }
+
         func affineSizes(rows: Int,
                          columns: Int,
                          slot: ManifestQuantSlot,
@@ -706,6 +726,60 @@ extension Model {
                 config.numHeads, headDimension, field: "layer \(layer) query")
             let kvDimension = try checkedIntMultiply(
                 kvHeads, headDimension, field: "layer \(layer) key/value")
+
+            if config.family == .qwen36 {
+                try requireBF16("\(prefix).input_layernorm.weight", count: config.hiddenSize)
+                try requireBF16("\(prefix).post_attention_layernorm.weight", count: config.hiddenSize)
+                try requireAffine("\(prefix).mlp.gate.weight",
+                                  rows: config.numExperts, columns: config.hiddenSize,
+                                  slot: quant.router)
+                try requireAffine("\(prefix).mlp.shared_expert_gate.weight",
+                                  rows: 1, columns: config.hiddenSize,
+                                  slot: quant.router)
+                for projection in ["gate_proj", "up_proj"] {
+                    try requireAffine("\(prefix).mlp.shared_expert.\(projection).weight",
+                                      rows: config.intermediateSize, columns: config.hiddenSize,
+                                      slot: quant.sharedExpert)
+                }
+                try requireAffine("\(prefix).mlp.shared_expert.down_proj.weight",
+                                  rows: config.hiddenSize, columns: config.intermediateSize,
+                                  slot: quant.sharedExpert)
+                if config.layerIsLinear(layer) {
+                    let linear = config.linearAttention
+                    for (name, rows) in [("in_proj_qkv", linear.qkvDim),
+                                         ("in_proj_z", linear.valueDim),
+                                         ("in_proj_a", linear.numVHeads),
+                                         ("in_proj_b", linear.numVHeads)] {
+                        try requireAffine("\(prefix).linear_attn.\(name).weight",
+                                          rows: rows, columns: config.hiddenSize,
+                                          slot: quant.attention)
+                    }
+                    try requireAffine("\(prefix).linear_attn.out_proj.weight",
+                                      rows: config.hiddenSize, columns: linear.valueDim,
+                                      slot: quant.attention)
+                    try requireBF16("\(prefix).linear_attn.conv1d.weight",
+                                    shape: [UInt32(linear.qkvDim), UInt32(linear.convKernelSize), 1])
+                    try requireBF16("\(prefix).linear_attn.A_log", count: linear.numVHeads)
+                    try requireBF16("\(prefix).linear_attn.dt_bias", count: linear.numVHeads)
+                    try requireBF16("\(prefix).linear_attn.norm.weight", count: linear.valueHeadDim)
+                } else {
+                    try requireAffine("\(prefix).self_attn.q_proj.weight",
+                                      rows: 2 * queryDimension, columns: config.hiddenSize,
+                                      slot: quant.attention)
+                    try requireAffine("\(prefix).self_attn.k_proj.weight",
+                                      rows: kvDimension, columns: config.hiddenSize,
+                                      slot: quant.attention)
+                    try requireAffine("\(prefix).self_attn.v_proj.weight",
+                                      rows: kvDimension, columns: config.hiddenSize,
+                                      slot: quant.attention)
+                    try requireAffine("\(prefix).self_attn.o_proj.weight",
+                                      rows: config.hiddenSize, columns: queryDimension,
+                                      slot: quant.attention)
+                    try requireBF16("\(prefix).self_attn.q_norm.weight", count: headDimension)
+                    try requireBF16("\(prefix).self_attn.k_norm.weight", count: headDimension)
+                }
+                continue
+            }
 
             for name in [
                 "input_layernorm.weight",

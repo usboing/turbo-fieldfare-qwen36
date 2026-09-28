@@ -217,12 +217,28 @@ import Testing
             if let companion = try? VisionPackLocation.companionURL(
                 forTextModel: candidate),
                manager.fileExists(atPath: candidate.path),
-               manager.fileExists(atPath: companion.path) {
+               manager.fileExists(atPath: companion.path),
+               receiptBindsCompanion(companion) {
                 return candidate
             }
             directory = directory.deletingLastPathComponent()
         }
         return nil
+    }
+
+    private static func receiptBindsCompanion(_ companion: URL) -> Bool {
+        let receiptURL = companion.appendingPathComponent(GTurboVisionFormatV1.receiptFile)
+        guard let data = try? Data(contentsOf: receiptURL),
+              let receipt = try? GTurboVisionReceiptCodec.decode(data) else { return false }
+        let recorded = URL(fileURLWithPath: receipt.companionDirectoryPath, isDirectory: true)
+        func canonical(_ url: URL) -> String {
+            let standardized = url.standardizedFileURL
+            return standardized.deletingLastPathComponent()
+                .resolvingSymlinksInPath()
+                .appendingPathComponent(standardized.lastPathComponent, isDirectory: true)
+                .standardizedFileURL.path
+        }
+        return canonical(recorded) == canonical(companion)
     }
 
     static var visionModelURL: URL? { visionModelURL() }

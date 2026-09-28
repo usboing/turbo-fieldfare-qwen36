@@ -5,13 +5,15 @@ enum AppModelLocation {
         descriptor: AppModelInstallDescriptor = .selected
     ) -> URL {
         let fileManager = FileManager.default
+        let explicitURL = ProcessInfo.processInfo.environment["TURBO_FIELDFARE_MODEL_PATH"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
         let applicationSupport = (try? fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: false)) ?? fileManager.homeDirectoryForCurrentUser
         return resolve(
-            explicitURL: nil,
+            explicitURL: explicitURL,
             executableURL: Bundle.main.executableURL,
             currentDirectoryURL: URL(fileURLWithPath: fileManager.currentDirectoryPath,
                                      isDirectory: true),

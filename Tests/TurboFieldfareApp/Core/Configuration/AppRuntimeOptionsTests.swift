@@ -20,6 +20,7 @@ import TurboFieldfare
     }
 
     @Test func everyPublicChoiceMapsToRuntime() throws {
+        #expect(AppRuntimeOptions.allowedSlotCounts == [8, 16, 24, 32, 64])
         for slots in AppRuntimeOptions.allowedSlotCounts {
             let prefillEnabled =
                 slots >= RuntimeConfiguration.minimumExpertCacheSlotsForChunkedPrefill
@@ -38,6 +39,11 @@ import TurboFieldfare
                 .resolvedRuntimeConfiguration(forceLogitsHead: false)
             #expect(runtime.rdadvisePolicy == policy.runtimeValue)
         }
+    }
+
+    @Test func slotLabelsDescribeMemoryRelativeToDefault() {
+        #expect(AppRuntimeOptions.slotsLabel(for: 32) == "32, +1.61 GB")
+        #expect(AppRuntimeOptions.slotsLabel(for: 64) == "64, +4.83 GB")
     }
 
     @Test func runtimeAndTrustChoicesAreExplicit() throws {

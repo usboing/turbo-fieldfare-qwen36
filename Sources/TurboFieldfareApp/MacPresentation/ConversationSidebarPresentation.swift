@@ -89,7 +89,10 @@ public enum ConversationRowPresentation {
 
     static func decimal(_ value: Int) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 }

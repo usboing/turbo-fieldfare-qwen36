@@ -20,10 +20,15 @@ validated separately.
    two-chunk baseline. The order-balanced 8,816-token comparison split: 4096
    won when first, while 2048 won narrowly when first. Keep 4096 selectable and
    experimental; retain 2048 as the stable general-purpose setting.
-5. **In progress — Scale through 16K/32K/64K.** Check correctness, memory,
-   sustained thermals, prefill time, and decode rate near each context bound.
-6. **Pending — Optimize the measured prefill bottleneck.** Choose Qwen
-   TensorOps full attention, DeltaNet, or expert I/O only after attribution.
+5. **Complete — Scale through 16K/32K/64K.** All three context allocations and
+   tiny generations pass; the 64K setting used a 3.31 GB peak versus 2.30 GB at
+   16K. A 14,656-token prompt completed correctly in 570.42 s with a 5.80 GB
+   peak, but tiled full attention consumed 453.56 s (79.5%). Defer near-bound
+   32K/64K timing until attention is optimized; current estimates are about
+   40 minutes and 2.5–3 hours respectively.
+6. **In progress — Optimize the measured prefill bottleneck.** The attribution
+   selects Qwen-compatible TensorOps full attention; expert I/O is secondary
+   and DeltaNet scales approximately linearly.
 7. **Pending — Validate and promote the prefill winner.** Run quality,
    continuation, long-context, memory, and full package gates before updating
    the daily app.

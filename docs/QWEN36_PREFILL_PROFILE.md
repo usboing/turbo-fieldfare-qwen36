@@ -55,3 +55,34 @@ directly to the same wall-time saving. macOS recorded no thermal or performance
 warning, though that coarse flag does not exclude clock or temperature drift
 visible in iStat. The promotion decision is therefore to keep 4096 selectable
 and experimental, while retaining 2048 as the stable general-purpose setting.
+
+## Context scaling envelope
+
+Configured-context smoke tests used the same three-token prompt, 64 LFU expert
+slots, 2048-token chunks, FP16 KV, and RDADVISE off. Every allocation and
+one-token generation completed correctly, and short-prompt prefill stayed at
+8.56–8.57 seconds regardless of the configured window.
+
+| Configured context | Peak footprint |
+| ---: | ---: |
+| 16,384 | 2.30 GB |
+| 32,768 | 2.63 GB |
+| 65,536 | 3.31 GB |
+
+The 64K window therefore adds about 1.0 GB over 16K in the allocation smoke
+test and is practical on the 24 GB machine. Actual workload memory is higher
+because routed experts and prefill scratch become resident during a real run.
+
+A fivefold frozen document produced 14,656 prompt tokens and completed at a
+16K context with 4096-token chunks:
+
+| Chunks | Prefill wall | DeltaNet + router GPU | Full attention + router GPU | Shared experts GPU | Routed experts GPU | Expert fetch wait | Peak footprint |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 570.42 s | 28.81 s | 453.56 s | 14.84 s | 66.59 s | 21.60 s | 5.80 GB |
+
+Full attention was 79.5% of prefill wall time. From 8,816 to 14,656 tokens,
+prompt length grew 1.66x while full-attention time grew 2.88x, confirming the
+quadratic curve. Extrapolating that measured curve puts a near-bound 32K run
+around 38–42 minutes and a 64K run around 2.5–3 hours. Those runs are deferred
+until the Qwen full-attention path is optimized; allocation and correctness do
+not justify spending hours re-measuring the known tiled-attention bottleneck.

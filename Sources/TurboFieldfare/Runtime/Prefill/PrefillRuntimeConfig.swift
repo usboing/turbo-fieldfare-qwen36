@@ -275,13 +275,15 @@ public struct PrefillRuntimeConfig: Sendable, Equatable {
     /// `VisionConfig().maximumPooledTokens` (280) for the KV ring and for the
     /// multimodal scratch layout, so every size up to 280 produces byte-identical
     /// geometry. Sizes above 280 increase scratch and ring capacity linearly.
-    /// 768 through 2048 are experimental measurement points; their geometry is
+    /// 768 through 4096 are experimental measurement points; their geometry is
     /// pinned by `PrefillChunkScratchTests` and `KVCacheManagerTests`.
-    public static let maxChunkTokens = 2048
+    public static let maxChunkTokens = 4096
 
     /// Chunk sizes a caller may select. Capped at `maxChunkTokens` - see there
     /// for why larger sizes are not offered.
-    public static let allowedChunkTokens = [32, 64, 128, 256, 512, 768, 1024, 1536, 2048]
+    public static let allowedChunkTokens = [
+        32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096,
+    ]
 
     /// The largest selectable chunk no greater than `requested`.
     ///

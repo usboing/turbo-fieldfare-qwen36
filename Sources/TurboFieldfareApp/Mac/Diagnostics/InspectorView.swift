@@ -418,7 +418,7 @@ struct InspectorView: View {
                     .labelsHidden()
                 }
                 Text("Larger chunks reduce repeated expert reads but use more temporary GPU memory. "
-                    + "768 through 2048 are experimental.")
+                    + "768 through 4096 are experimental.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

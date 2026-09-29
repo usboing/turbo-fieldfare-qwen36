@@ -35,7 +35,7 @@ model, so an unsupported combination fails immediately with the usage text.
 | Expert-cache slots | 8, 16, 24, 32 | `--expert-cache-slots` | 16 | More slots can retain more routed experts and reduce later reads, but values above 16 use more RAM. Chunked prefill requires at least 16 slots. |
 | Expert-cache policy | LFU | `--expert-cache-policy lfu\|lru` | LFU | Chooses which expert is evicted when the cache is full. |
 | Prompt prefill | On, off | `--prefill on\|off` | On | On processes known prompt tokens through the chunked prefill path. Off disables that path. |
-| Prefill chunk size | 128, 256, 512, 768, 1024, 1536, 2048 | `--prefill-chunk-tokens 32\|64\|128\|256\|512\|768\|1024\|1536\|2048\|auto` | 128 | Sets the number of prompt tokens processed by each chunked-prefill step, and has no effect while prefill is off. Chunks loop outside layers, so each one re-reads that layer's routed experts: fewer, larger chunks read less. `auto` picks the smallest size that covers the prompt. On the server `auto` is the cap, 2048: a per-request size is the smallest allowed size covering the span, so the cap prefills every prompt in exactly those spans, and the KV ring is sized from the cap either way. Only the prefill scratch is sized from the chunk, at about 125.5 KB per token over a fixed 328 KB, so the cap holds about 257.3 MB of it against 16.4 MB at 128, and a per-request size would reallocate it whenever the chosen size moved. Values above 512 are experimental. |
+| Prefill chunk size | 128, 256, 512, 768, 1024, 1536, 2048, 4096 | `--prefill-chunk-tokens 32\|64\|128\|256\|512\|768\|1024\|1536\|2048\|4096\|auto` | 128 | Sets the number of prompt tokens processed by each chunked-prefill step, and has no effect while prefill is off. Chunks loop outside layers, so each one re-reads that layer's routed experts: fewer, larger chunks read less. `auto` picks the smallest size that covers the prompt. On the server `auto` is the cap, 4096: a per-request size is the smallest allowed size covering the span, so the cap prefills every prompt in exactly those spans, and the KV ring is sized from the cap either way. Only the prefill scratch is sized from the chunk, at about 125.5 KB per token over a fixed 328 KB, so the cap holds about 514.3 MB of it against 16.4 MB at 128, and a per-request size would reallocate it whenever the chosen size moved. Values above 512 are experimental. |
 | RDADVISE | Off, Default, Bounded, Adaptive | `--rdadvise off\|default\|bounded\|adaptive` | Off | Applies experimental read advice. Its effect depends on the workload; it may help a short decode and slow a long one. |
 
 On the M3 Air Qwen build, controlled release runs with 64 LFU slots and one
@@ -62,8 +62,8 @@ the app preserves the visible transcript and marks where the model's new
 context begins. Each CLI invocation loads a new model process, so its selected
 runtime settings apply immediately. The server fixes its runtime settings at
 startup, so changing one means restarting the process;
-`--prefill-chunk-tokens auto` resolves to the cap, 2048, there, which allocates
-about 257.3 MB of prefill scratch against about 16.4 MB at the 128 default.
+`--prefill-chunk-tokens auto` resolves to the cap, 4096, there, which allocates
+about 514.3 MB of prefill scratch against about 16.4 MB at the 128 default.
 
 Setting `TURBO_FIELDFARE_PHASES=1` makes the CLI print both the prefill phase
 attribution and decode phase split after generation. Prefill reports GPU time

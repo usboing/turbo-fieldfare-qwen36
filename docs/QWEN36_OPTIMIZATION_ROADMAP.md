@@ -14,8 +14,13 @@ validated separately.
    focused tests passed. Real 2,940- and 8,816-token profiles identified tiled
    full attention as 31% and 66% of wall time respectively; see
    `QWEN36_PREFILL_PROFILE.md`.
-4. **In progress — Test 4096-token chunks.** Compare against 2048 with memory,
-   temperature, power, and throttling recorded; do not promote a marginal win.
+4. **In progress — Test 4096-token chunks.** Correctness and the full 1,425-test
+   package gate pass.
+   At 2,940 tokens, one 4096 chunk measured 35.46 s versus the frozen 40.96 s
+   two-chunk baseline. At 8,816 tokens, a same-session 4096/2048 pair measured
+   232.53/272.15 s, but both drifted from the earlier 227.16 s baseline and the
+   later run was slower, consistent with thermal or system-state bias. Finish an
+   order-balanced comparison before promotion.
 5. **Pending — Scale through 16K/32K/64K.** Check correctness, memory,
    sustained thermals, prefill time, and decode rate near each context bound.
 6. **Pending — Optimize the measured prefill bottleneck.** Choose Qwen

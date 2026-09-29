@@ -33,11 +33,11 @@ import Metal
     @Test func layoutClampsChunkSizeToRuntimeBounds() {
         #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 0).chunkTokens == 1)
         // 512 is the first selectable size above the 280-token pooled image
-        // span. Larger requests clamp to the tested 2048-token ceiling.
-        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 4_096).chunkTokens
+        // span. Larger requests clamp to the tested 4096-token ceiling.
+        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 8_192).chunkTokens
                 == PrefillRuntimeConfig.maxChunkTokens)
-        #expect(PrefillRuntimeConfig.maxChunkTokens == 2_048)
-        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 2_048).chunkTokens == 2_048)
+        #expect(PrefillRuntimeConfig.maxChunkTokens == 4_096)
+        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 4_096).chunkTokens == 4_096)
     }
 
     /// `auto` asks for the smallest allowed chunk that covers the prompt,
@@ -52,8 +52,9 @@ import Metal
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 900) == 1_024)
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 1_300) == 1_536)
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 1_800) == 2_048)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 3_000) == 4_096)
         // Beyond the ceiling it saturates rather than inventing a size.
-        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 7_019) == 2_048)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 7_019) == 4_096)
         // A cap below the ceiling is honoured, so a caller can stay smaller.
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 7_019, cap: 64) == 64)
     }
@@ -127,6 +128,7 @@ import Metal
         let at1024 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 1_024)
         let at1536 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 1_536)
         let at2048 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 2_048)
+        let at4096 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 4_096)
         let perToken = at256.totalPersistentBytes - at128.totalPersistentBytes
         #expect(at128.totalPersistentBytes == 16_390_528)
         #expect(at256.totalPersistentBytes == 32_452_992)
@@ -135,6 +137,7 @@ import Metal
         #expect(at1024.totalPersistentBytes == 128_827_776)
         #expect(at1536.totalPersistentBytes == 193_077_632)
         #expect(at2048.totalPersistentBytes == 257_327_488)
+        #expect(at4096.totalPersistentBytes == 514_326_912)
         #expect(perToken == 128 * 125_488)
         #expect(at128.totalPersistentBytes - 128 * 125_488 == 328_064)
     }

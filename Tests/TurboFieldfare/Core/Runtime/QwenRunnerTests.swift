@@ -235,5 +235,5 @@ import Metal
 }
 
 private enum AppPrefillTestChunks {
-    static let values = [128, 256, 512, 768, 1024, 1536, 2048]
+    static let values = [128, 256, 512, 768, 1024, 1536, 2048, 4096]
 }

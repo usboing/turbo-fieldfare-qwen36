@@ -51,9 +51,9 @@ import TurboFieldfare
     @Test func everyPublicChoiceMapsToRuntime() throws {
         #expect(AppRuntimeOptions.allowedSlotCounts == [8, 16, 24, 32, 64])
         #expect(AppRuntimeOptions.allowedPrefillChunkTokens
-                == [32, 64, 128, 256, 512, 768, 1024, 1536, 2048])
+                == [32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096])
         #expect(AppRuntimeOptions.appPrefillChunkTokens
-                == [128, 256, 512, 768, 1024, 1536, 2048])
+                == [128, 256, 512, 768, 1024, 1536, 2048, 4096])
         for slots in AppRuntimeOptions.allowedSlotCounts {
             let prefillEnabled =
                 slots >= RuntimeConfiguration.minimumExpertCacheSlotsForChunkedPrefill

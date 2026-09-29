@@ -3,6 +3,39 @@ import TurboFieldfare
 @testable import TurboFieldfareCLICore
 
 @Suite struct CLIArgumentsTests {
+    @Test func prefillProfileFormatterNamesEveryAttributionBucket() {
+        let text = formatPrefillPerformanceDiagnostics(
+            PrefillPerformanceDiagnostics(
+                tokenCount: 2_048,
+                chunkCount: 1,
+                totalMilliseconds: 12.3,
+                deltaNetAndRouterGPUMilliseconds: 1.1,
+                softmaxAttentionAndRouterGPUMilliseconds: 2.2,
+                tensorOpsFullAttentionDispatches: 3,
+                tiledFullAttentionDispatches: 4,
+                sharedExpertGPUMilliseconds: 5.5,
+                routedExpertGPUMilliseconds: 6.6,
+                expertFetchWaitMilliseconds: 7.7,
+                routeGroupingMilliseconds: 8.8,
+                layerTailGPUMilliseconds: 9.9,
+                finalHeadGPUMilliseconds: 10.1))
+
+        #expect(text.contains("2048 tokens in 1 chunks, wall 12.3 ms"))
+        #expect(text.contains("3 TensorOps, 4 tiled"))
+        for label in [
+            "DeltaNet + router GPU",
+            "softmax attention + router",
+            "shared experts GPU",
+            "routed experts GPU",
+            "expert fetch wait",
+            "route grouping CPU",
+            "layer tails GPU",
+            "final head GPU",
+        ] {
+            #expect(text.contains(label))
+        }
+    }
+
     @Test func defaultsUseProductionGenerationValues() throws {
         let arguments = try Args.parse(["--model", "m.gturbo", "--prompt", "hi"])
         #expect(arguments.model == "m.gturbo")

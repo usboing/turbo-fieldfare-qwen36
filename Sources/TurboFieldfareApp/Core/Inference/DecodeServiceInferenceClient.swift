@@ -622,12 +622,30 @@ public final class DecodeServiceInferenceClient: AppModelLifecycleClient,
               let completeness = PrefillChunkCompleteness(
                 rawValue: value.chunkCompleteness) else { return nil }
         let kvStorage = value.kvStorageMode.flatMap(PrefillKVStorageMode.init(rawValue:))
+        let performance = value.performance.map {
+            PrefillPerformanceDiagnostics(
+                tokenCount: $0.tokenCount,
+                chunkCount: $0.chunkCount,
+                totalMilliseconds: $0.totalMilliseconds,
+                deltaNetAndRouterGPUMilliseconds: $0.deltaNetAndRouterGPUMilliseconds,
+                softmaxAttentionAndRouterGPUMilliseconds:
+                    $0.softmaxAttentionAndRouterGPUMilliseconds,
+                tensorOpsFullAttentionDispatches: $0.tensorOpsFullAttentionDispatches,
+                tiledFullAttentionDispatches: $0.tiledFullAttentionDispatches,
+                sharedExpertGPUMilliseconds: $0.sharedExpertGPUMilliseconds,
+                routedExpertGPUMilliseconds: $0.routedExpertGPUMilliseconds,
+                expertFetchWaitMilliseconds: $0.expertFetchWaitMilliseconds,
+                routeGroupingMilliseconds: $0.routeGroupingMilliseconds,
+                layerTailGPUMilliseconds: $0.layerTailGPUMilliseconds,
+                finalHeadGPUMilliseconds: $0.finalHeadGPUMilliseconds)
+        }
         return PrefillExecutionDiagnostics(
             config: options.prefillConfig,
             executedMode: executedMode,
             kvStorageMode: kvStorage,
             chunkCompleteness: completeness,
-            unsupportedReason: value.unsupportedReason)
+            unsupportedReason: value.unsupportedReason,
+            performance: performance)
     }
 
     private static func runnerDiagnostics(_ value: DecodeRunnerDiagnostics)

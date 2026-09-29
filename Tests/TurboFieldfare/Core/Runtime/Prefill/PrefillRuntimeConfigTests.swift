@@ -34,4 +34,29 @@ import Testing
         #expect(diagnostics.chunkCompleteness == .unsupported)
         #expect(diagnostics.unsupportedReason == "unavailable")
     }
+
+    @Test func diagnosticsCarryPrefillAttribution() throws {
+        let performance = PrefillPerformanceDiagnostics(
+            tokenCount: 2_334,
+            chunkCount: 2,
+            totalMilliseconds: 28_370,
+            deltaNetAndRouterGPUMilliseconds: 4_000,
+            softmaxAttentionAndRouterGPUMilliseconds: 2_000,
+            tensorOpsFullAttentionDispatches: 0,
+            tiledFullAttentionDispatches: 20,
+            sharedExpertGPUMilliseconds: 3_000,
+            routedExpertGPUMilliseconds: 7_000,
+            expertFetchWaitMilliseconds: 11_000,
+            routeGroupingMilliseconds: 60,
+            layerTailGPUMilliseconds: 300,
+            finalHeadGPUMilliseconds: 12)
+        let diagnostics = PrefillExecutionDiagnostics(
+            config: .production(chunkTokens: 2_048),
+            executedMode: .chunked,
+            kvStorageMode: .fp16,
+            performance: performance)
+
+        #expect(diagnostics.performance == performance)
+        #expect(try #require(diagnostics.performance).tiledFullAttentionDispatches == 20)
+    }
 }

@@ -294,6 +294,9 @@ public func run(args: Args,
                                 hold.submittedCommandBuffers, hold.activeSeconds)
             }
             lines += "\n"
+            if let profile = runner.prefillPerformanceDiagnostics {
+                lines += formatPrefillPerformanceDiagnostics(profile)
+            }
             stderr.write(Data(lines.utf8))
         }
         if !args.quiet {
@@ -316,6 +319,35 @@ public func run(args: Args,
     } catch {
         return errored(stderr, "\(error)", 1)
     }
+}
+
+func formatPrefillPerformanceDiagnostics(
+    _ profile: PrefillPerformanceDiagnostics
+) -> String {
+    let ms = { (value: Double) in String(format: "%.1f", value) }
+    var lines = "[prefill profile over \(profile.tokenCount) tokens in "
+    lines += "\(profile.chunkCount) chunks, wall "
+    lines += ms(profile.totalMilliseconds) + " ms]\n"
+    lines += "  DeltaNet + router GPU:      "
+        + ms(profile.deltaNetAndRouterGPUMilliseconds) + " ms\n"
+    lines += "  softmax attention + router: "
+        + ms(profile.softmaxAttentionAndRouterGPUMilliseconds) + " ms\n"
+    lines += "  full-attention path:        "
+        + "\(profile.tensorOpsFullAttentionDispatches) TensorOps, "
+        + "\(profile.tiledFullAttentionDispatches) tiled\n"
+    lines += "  shared experts GPU:         "
+        + ms(profile.sharedExpertGPUMilliseconds) + " ms\n"
+    lines += "  routed experts GPU:         "
+        + ms(profile.routedExpertGPUMilliseconds) + " ms\n"
+    lines += "  expert fetch wait:          "
+        + ms(profile.expertFetchWaitMilliseconds) + " ms\n"
+    lines += "  route grouping CPU:         "
+        + ms(profile.routeGroupingMilliseconds) + " ms\n"
+    lines += "  layer tails GPU:            "
+        + ms(profile.layerTailGPUMilliseconds) + " ms\n"
+    lines += "  final head GPU:             "
+        + ms(profile.finalHeadGPUMilliseconds) + " ms\n"
+    return lines
 }
 
 

@@ -201,7 +201,24 @@ final class DecodeServiceOutbox: @unchecked Sendable {
             executedMode: value.executedMode.rawValue,
             kvStorageMode: value.kvStorageMode?.rawValue,
             chunkCompleteness: value.chunkCompleteness.rawValue,
-            unsupportedReason: value.unsupportedReason)
+            unsupportedReason: value.unsupportedReason,
+            performance: value.performance.map {
+                DecodePrefillPerformanceDiagnostics(
+                    tokenCount: $0.tokenCount,
+                    chunkCount: $0.chunkCount,
+                    totalMilliseconds: $0.totalMilliseconds,
+                    deltaNetAndRouterGPUMilliseconds: $0.deltaNetAndRouterGPUMilliseconds,
+                    softmaxAttentionAndRouterGPUMilliseconds:
+                        $0.softmaxAttentionAndRouterGPUMilliseconds,
+                    tensorOpsFullAttentionDispatches: $0.tensorOpsFullAttentionDispatches,
+                    tiledFullAttentionDispatches: $0.tiledFullAttentionDispatches,
+                    sharedExpertGPUMilliseconds: $0.sharedExpertGPUMilliseconds,
+                    routedExpertGPUMilliseconds: $0.routedExpertGPUMilliseconds,
+                    expertFetchWaitMilliseconds: $0.expertFetchWaitMilliseconds,
+                    routeGroupingMilliseconds: $0.routeGroupingMilliseconds,
+                    layerTailGPUMilliseconds: $0.layerTailGPUMilliseconds,
+                    finalHeadGPUMilliseconds: $0.finalHeadGPUMilliseconds)
+            })
     }
 
     private static func runnerDiagnostics(_ value: AppRunnerDiagnostics)

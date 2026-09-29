@@ -48,6 +48,41 @@ struct RunnerDiagnosticsSection: View {
                             DiagnosticRow("Mode", "\(prefill.requestedMode.rawValue) -> \(prefill.executedMode.rawValue)")
                             DiagnosticRow("KV storage", prefill.kvStorageMode?.rawValue ?? "unknown")
                             DiagnosticRow("Completeness", prefill.chunkCompleteness.rawValue)
+                            if let performance = prefill.performance {
+                                DiagnosticRow("Profiled tokens", "\(performance.tokenCount)")
+                                DiagnosticRow("Chunks", "\(performance.chunkCount)")
+                                DiagnosticRow("Profile wall",
+                                              MetricFormat.milliseconds(
+                                                performance.totalMilliseconds))
+                                DiagnosticRow("DeltaNet + router GPU",
+                                              MetricFormat.milliseconds(
+                                                performance.deltaNetAndRouterGPUMilliseconds))
+                                DiagnosticRow("Softmax attention + router GPU",
+                                              MetricFormat.milliseconds(
+                                                performance.softmaxAttentionAndRouterGPUMilliseconds))
+                                DiagnosticRow(
+                                    "Full-attention path",
+                                    "\(performance.tensorOpsFullAttentionDispatches) TensorOps, "
+                                        + "\(performance.tiledFullAttentionDispatches) tiled")
+                                DiagnosticRow("Shared experts GPU",
+                                              MetricFormat.milliseconds(
+                                                performance.sharedExpertGPUMilliseconds))
+                                DiagnosticRow("Routed experts GPU",
+                                              MetricFormat.milliseconds(
+                                                performance.routedExpertGPUMilliseconds))
+                                DiagnosticRow("Expert fetch wait",
+                                              MetricFormat.milliseconds(
+                                                performance.expertFetchWaitMilliseconds))
+                                DiagnosticRow("Route grouping CPU",
+                                              MetricFormat.milliseconds(
+                                                performance.routeGroupingMilliseconds))
+                                DiagnosticRow("Layer tails GPU",
+                                              MetricFormat.milliseconds(
+                                                performance.layerTailGPUMilliseconds))
+                                DiagnosticRow("Final head GPU",
+                                              MetricFormat.milliseconds(
+                                                performance.finalHeadGPUMilliseconds))
+                            }
                             if let reason = prefill.unsupportedReason, !reason.isEmpty {
                                 DiagnosticRow("Unsupported reason", reason, multiline: true)
                             }

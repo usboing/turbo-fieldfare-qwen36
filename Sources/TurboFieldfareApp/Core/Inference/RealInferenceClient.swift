@@ -797,9 +797,6 @@ actor RealInferenceSession {
             }
             let executedPrefillMode: PrefillExecutedMode =
                 prefillConfig.mode == .chunked ? .chunked : .off
-            let prefillDiagnostics = PrefillExecutionDiagnostics(config: prefillConfig,
-                                                                 executedMode: executedPrefillMode,
-                                                                 kvStorageMode: .fp16)
 
             let report: @Sendable (RawDecodeProgress) -> Void = { event in
                 switch event {
@@ -841,6 +838,11 @@ actor RealInferenceSession {
                     report: report)
             }
             let result = outcome
+            let prefillDiagnostics = PrefillExecutionDiagnostics(
+                config: prefillConfig,
+                executedMode: executedPrefillMode,
+                kvStorageMode: .fp16,
+                performance: runner.prefillPerformanceDiagnostics)
 
             let diagnostics = makeDiagnostics(request: request,
                                               memorySampler: memorySampler,

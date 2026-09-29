@@ -32,6 +32,27 @@ import TurboFieldfareDecodeProtocol
     }
 
     @Test func terminalEventRoundTripPreservesDiagnosticsAndMemory() throws {
+        let prefillPerformance = DecodePrefillPerformanceDiagnostics(
+            tokenCount: 1_017,
+            chunkCount: 2,
+            totalMilliseconds: 10_200,
+            deltaNetAndRouterGPUMilliseconds: 2_100,
+            softmaxAttentionAndRouterGPUMilliseconds: 900,
+            tensorOpsFullAttentionDispatches: 0,
+            tiledFullAttentionDispatches: 20,
+            sharedExpertGPUMilliseconds: 800,
+            routedExpertGPUMilliseconds: 2_500,
+            expertFetchWaitMilliseconds: 3_200,
+            routeGroupingMilliseconds: 40,
+            layerTailGPUMilliseconds: 120,
+            finalHeadGPUMilliseconds: 8)
+        let prefill = DecodePrefillDiagnostics(
+            requestedMode: "chunked",
+            executedMode: "chunked",
+            kvStorageMode: "fp16",
+            chunkCompleteness: "complete",
+            unsupportedReason: nil,
+            performance: prefillPerformance)
         let runner = DecodeRunnerDiagnostics(
             cb1MillisecondsPerToken: 0.6,
             ioMillisecondsPerToken: 12,
@@ -54,6 +75,7 @@ import TurboFieldfareDecodeProtocol
             tokensPerSecond: 33.2,
             currentMemoryBytes: 2_000_000_000,
             peakMemoryBytes: 2_100_000_000,
+            prefill: prefill,
             runner: runner)
         let pipe = Pipe()
         try pipe.fileHandleForWriting.write(
@@ -68,6 +90,7 @@ import TurboFieldfareDecodeProtocol
         #expect(decoded.computedPrefillTokens == 17)
         #expect(decoded.currentMemoryBytes == 2_000_000_000)
         #expect(decoded.peakMemoryBytes == 2_100_000_000)
+        #expect(decoded.prefill == prefill)
         #expect(decoded.runner == runner)
     }
 

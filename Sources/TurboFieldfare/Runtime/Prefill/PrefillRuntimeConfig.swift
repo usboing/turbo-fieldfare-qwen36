@@ -178,24 +178,75 @@ public enum PrefillChunkCompleteness: String, Sendable, Equatable {
     case unsupported
 }
 
+/// Attribution for the most recent chunked prefill call. GPU buckets use the
+/// completed Metal command buffers' device timestamps. The two CPU buckets are
+/// wall time and may overlap queued GPU work, so they are evidence about waits
+/// and host preparation rather than additive parts of `totalMilliseconds`.
+public struct PrefillPerformanceDiagnostics: Sendable, Equatable {
+    public let tokenCount: Int
+    public let chunkCount: Int
+    public let totalMilliseconds: Double
+    public let deltaNetAndRouterGPUMilliseconds: Double
+    public let softmaxAttentionAndRouterGPUMilliseconds: Double
+    public let tensorOpsFullAttentionDispatches: Int
+    public let tiledFullAttentionDispatches: Int
+    public let sharedExpertGPUMilliseconds: Double
+    public let routedExpertGPUMilliseconds: Double
+    public let expertFetchWaitMilliseconds: Double
+    public let routeGroupingMilliseconds: Double
+    public let layerTailGPUMilliseconds: Double
+    public let finalHeadGPUMilliseconds: Double
+
+    public init(tokenCount: Int,
+                chunkCount: Int,
+                totalMilliseconds: Double,
+                deltaNetAndRouterGPUMilliseconds: Double,
+                softmaxAttentionAndRouterGPUMilliseconds: Double,
+                tensorOpsFullAttentionDispatches: Int,
+                tiledFullAttentionDispatches: Int,
+                sharedExpertGPUMilliseconds: Double,
+                routedExpertGPUMilliseconds: Double,
+                expertFetchWaitMilliseconds: Double,
+                routeGroupingMilliseconds: Double,
+                layerTailGPUMilliseconds: Double,
+                finalHeadGPUMilliseconds: Double) {
+        self.tokenCount = tokenCount
+        self.chunkCount = chunkCount
+        self.totalMilliseconds = totalMilliseconds
+        self.deltaNetAndRouterGPUMilliseconds = deltaNetAndRouterGPUMilliseconds
+        self.softmaxAttentionAndRouterGPUMilliseconds = softmaxAttentionAndRouterGPUMilliseconds
+        self.tensorOpsFullAttentionDispatches = tensorOpsFullAttentionDispatches
+        self.tiledFullAttentionDispatches = tiledFullAttentionDispatches
+        self.sharedExpertGPUMilliseconds = sharedExpertGPUMilliseconds
+        self.routedExpertGPUMilliseconds = routedExpertGPUMilliseconds
+        self.expertFetchWaitMilliseconds = expertFetchWaitMilliseconds
+        self.routeGroupingMilliseconds = routeGroupingMilliseconds
+        self.layerTailGPUMilliseconds = layerTailGPUMilliseconds
+        self.finalHeadGPUMilliseconds = finalHeadGPUMilliseconds
+    }
+}
+
 public struct PrefillExecutionDiagnostics: Sendable, Equatable {
     public let requestedMode: PrefillRuntimeConfig.Mode
     public let executedMode: PrefillExecutedMode
     public let kvStorageMode: PrefillKVStorageMode?
     public let chunkCompleteness: PrefillChunkCompleteness
     public let unsupportedReason: String?
+    public let performance: PrefillPerformanceDiagnostics?
 
     public init(config: PrefillRuntimeConfig,
                 executedMode: PrefillExecutedMode,
                 kvStorageMode: PrefillKVStorageMode? = nil,
                 chunkCompleteness: PrefillChunkCompleteness? = nil,
-                unsupportedReason: String? = nil) {
+                unsupportedReason: String? = nil,
+                performance: PrefillPerformanceDiagnostics? = nil) {
         self.requestedMode = config.mode
         self.executedMode = executedMode
         self.kvStorageMode = kvStorageMode
         self.chunkCompleteness = chunkCompleteness
             ?? (executedMode == .unsupported ? .unsupported : .complete)
         self.unsupportedReason = unsupportedReason
+        self.performance = performance
     }
 
     public static func unsupported(config: PrefillRuntimeConfig,

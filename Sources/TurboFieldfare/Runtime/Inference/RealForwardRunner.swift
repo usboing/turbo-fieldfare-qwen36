@@ -131,6 +131,41 @@ internal enum PrefillProjectionDispatchPolicy {
 }
 
 public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRunner, ContextWindowReporting, ContinuableLogitProducer, @unchecked Sendable {
+    private struct PrefillProfileCounters {
+        var tokenCount = 0
+        var chunkCount = 0
+        var totalNanos: UInt64 = 0
+        var deltaNetAndRouterGPUNanos: UInt64 = 0
+        var softmaxAttentionAndRouterGPUNanos: UInt64 = 0
+        var tensorOpsFullAttentionDispatches = 0
+        var tiledFullAttentionDispatches = 0
+        var sharedExpertGPUNanos: UInt64 = 0
+        var routedExpertGPUNanos: UInt64 = 0
+        var expertFetchWaitNanos: UInt64 = 0
+        var routeGroupingNanos: UInt64 = 0
+        var layerTailGPUNanos: UInt64 = 0
+        var finalHeadGPUNanos: UInt64 = 0
+
+        var diagnostics: PrefillPerformanceDiagnostics? {
+            guard chunkCount > 0 else { return nil }
+            func ms(_ nanos: UInt64) -> Double { Double(nanos) / 1_000_000 }
+            return PrefillPerformanceDiagnostics(
+                tokenCount: tokenCount,
+                chunkCount: chunkCount,
+                totalMilliseconds: ms(totalNanos),
+                deltaNetAndRouterGPUMilliseconds: ms(deltaNetAndRouterGPUNanos),
+                softmaxAttentionAndRouterGPUMilliseconds: ms(softmaxAttentionAndRouterGPUNanos),
+                tensorOpsFullAttentionDispatches: tensorOpsFullAttentionDispatches,
+                tiledFullAttentionDispatches: tiledFullAttentionDispatches,
+                sharedExpertGPUMilliseconds: ms(sharedExpertGPUNanos),
+                routedExpertGPUMilliseconds: ms(routedExpertGPUNanos),
+                expertFetchWaitMilliseconds: ms(expertFetchWaitNanos),
+                routeGroupingMilliseconds: ms(routeGroupingNanos),
+                layerTailGPUMilliseconds: ms(layerTailGPUNanos),
+                finalHeadGPUMilliseconds: ms(finalHeadGPUNanos))
+        }
+    }
+
     private struct LayerSharedExpertProjections {
         let gate: SharedExpertInt8Proj
         let up: SharedExpertInt8Proj
@@ -223,6 +258,11 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
     private let onesPerExpertScale: MTLBuffer?
     private var prefillChunkState = PrefillChunkCommitState()
     private var prefillScratch: PrefillChunkScratchBuffers?
+    private var prefillProfileCounters = PrefillProfileCounters()
+
+    public var prefillPerformanceDiagnostics: PrefillPerformanceDiagnostics? {
+        prefillProfileCounters.diagnostics
+    }
 
     private static let rdadviseBoundedMissCap = 12
     private static let rdadviseBoundedMaxCallNanos: UInt64 = 250_000
@@ -651,6 +691,12 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
             return PrefillResult(newPosition: startPosition, seed: .logitsWritten)
         }
 
+        prefillProfileCounters = PrefillProfileCounters()
+        let profileStart = DispatchTime.now().uptimeNanoseconds
+        defer {
+            prefillProfileCounters.totalNanos = DispatchTime.now().uptimeNanoseconds
+                &- profileStart
+        }
         let scratch = try ensurePrefillScratch(config: config)
         let spans = PrefillChunkPlanner.spans(tokenCount: tokens.count,
                                               startPosition: startPosition,
@@ -705,6 +751,12 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
             return PrefillResult(newPosition: startPosition, seed: .logitsWritten)
         }
 
+        prefillProfileCounters = PrefillProfileCounters()
+        let profileStart = DispatchTime.now().uptimeNanoseconds
+        defer {
+            prefillProfileCounters.totalNanos = DispatchTime.now().uptimeNanoseconds
+                &- profileStart
+        }
         // The planner applies the same clamp the scratch layout does. Cutting at
         // the raw `config.chunkTokens` let a caller size a 280-token scratch and
         // then hand it a larger chunk, which died on the guard.
@@ -806,6 +858,8 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
             throw PrefillError.chunkedUnsupported(
                 "chunked prefill token count \(tokens.count) exceeds scratch chunk size \(scratch.layout.chunkTokens)")
         }
+        prefillProfileCounters.tokenCount += tokens.count
+        prefillProfileCounters.chunkCount += 1
         if let kv, kv.fp16RingEnabled, let ringLayer = (0..<cfg.numLayers).first(where: {
             kv.ringCapacity(layer: $0) > 0
         }) {
@@ -1068,6 +1122,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
             let numKVHeads = isFull ? cfg.numFullKVHeads : cfg.numKVHeads
             let qDim = cfg.numHeads * headDim
             let kvDim = numKVHeads * headDim
+            var fullAttentionExecutionPath: PrefillAttention.ExecutionPath?
 
             prefillRMS.encodeBF16W(commandBuffer: cb,
                                    x: scratch.hidden,
@@ -1300,7 +1355,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                         let activeRingCapacity = ringCapacity > 0 && startPosition + t > ringCapacity
                             ? UInt32(ringCapacity)
                             : 0
-                        prefillAttention.encodeCausal(commandBuffer: cb,
+                        let executionPath = prefillAttention.encodeCausal(commandBuffer: cb,
                                                       q: attnQ,
                                                       k: keyBuffer,
                                                       v: valueBuffer,
@@ -1309,6 +1364,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                                                       kvRingCapacity: activeRingCapacity,
                                                       layerKind: isFull ? .full : .slidingWindow,
                                                       path: prefillAttentionPath)
+                        if isFull { fullAttentionExecutionPath = executionPath }
                 } else {
                     throw PrefillError.chunkedUnsupported(
                         "chunked prefill attention requires FP16 KV")
@@ -1397,7 +1453,24 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
 
                     cb.commit()
                     try waitForCompletion(cb)
+                    let attentionRouterGPUNanos = gpuElapsedNanos(cb)
+                    if isLinear {
+                        prefillProfileCounters.deltaNetAndRouterGPUNanos &+=
+                            attentionRouterGPUNanos
+                    } else {
+                        prefillProfileCounters.softmaxAttentionAndRouterGPUNanos &+=
+                            attentionRouterGPUNanos
+                        switch fullAttentionExecutionPath {
+                        case .tensorOps2D:
+                            prefillProfileCounters.tensorOpsFullAttentionDispatches += 1
+                        case .causalTiled:
+                            prefillProfileCounters.tiledFullAttentionDispatches += 1
+                        case nil:
+                            break
+                        }
+                    }
 
+                    let routeGroupingStart = DispatchTime.now().uptimeNanoseconds
                     let routeCount = t * cfg.topKExperts
                     let idPtr = scratch.routeIDs.contents()
                         .bindMemory(to: UInt32.self, capacity: routeCount)
@@ -1433,6 +1506,8 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                         numExperts: cfg.numExperts,
                         tileExpertCount: routeTileExpertCount,
                         expertSortKeys: model.routedExpertPhysicalOffsets(layer: L))
+                    prefillProfileCounters.routeGroupingNanos &+=
+                        DispatchTime.now().uptimeNanoseconds &- routeGroupingStart
 
                     guard let sharedCB = ctx.queue.makeCommandBuffer() else {
                         throw ModelError.residentBufferWrapFailed
@@ -1498,6 +1573,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                     }
                     sharedCB.commit()
                     try waitForCompletion(sharedCB)
+                    prefillProfileCounters.sharedExpertGPUNanos &+= gpuElapsedNanos(sharedCB)
 
                     let metadata = try prefillGroupedMoE.makeStreamedMetadataBuffers(
                         device: ctx.device,
@@ -1517,6 +1593,8 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                         try withExtendedLifetime((pending.fetch, pending.argumentBuffer)) {
                             try waitForCompletion(pending.commandBuffer)
                         }
+                        prefillProfileCounters.routedExpertGPUNanos &+=
+                            gpuElapsedNanos(pending.commandBuffer)
                         if !pending.fetch.plannedMissSlots.isEmpty {
                             try tileLifetime.complete(tileIndex: pending.tileIndex)
                         }
@@ -1584,6 +1662,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                                     detail: "routed tile scheduler requested pending action without pending tile")
                             }
                         }
+                        let fetchStart = DispatchTime.now().uptimeNanoseconds
                         let fetch = try await PrefillStreamedTileBinding.fetchBindingForTile(
                             model: model,
                             layer: L,
@@ -1591,6 +1670,8 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                             routes: routes,
                             plannedFetch: plannedFetch,
                             avoidingSlots: Set(pendingTiles.flatMap(\.fetch.plannedAssignedSlots)))
+                        prefillProfileCounters.expertFetchWaitNanos &+=
+                            DispatchTime.now().uptimeNanoseconds &- fetchStart
                         try fetch.binding.validateCoversPairs(routes.sortedPairs,
                                                               pairStart: Int(tile.pairStart),
                                                               pairCount: Int(tile.pairCount))
@@ -1684,6 +1765,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                     try withExtendedLifetime(metadata) {
                         try waitForCompletion(tailCB)
                     }
+                    prefillProfileCounters.layerTailGPUNanos &+= gpuElapsedNanos(tailCB)
                     if L + 1 < cfg.numLayers {
                         guard let nextCB = ctx.queue.makeCommandBuffer() else {
                             throw ModelError.residentBufferWrapFailed
@@ -1739,6 +1821,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
             }
             finalCB.commit()
             try waitForCompletion(finalCB)
+            prefillProfileCounters.finalHeadGPUNanos &+= gpuElapsedNanos(finalCB)
             if outputMode == .greedyIfAvailable, useFusedGreedyHead {
                 lastGreedyToken = greedyTokenBuf.contents().load(as: UInt32.self)
             }
@@ -2475,6 +2558,13 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
 
     private nonisolated func waitUntilCompleted(_ cb: MTLCommandBuffer) {
         cb.waitUntilCompleted()
+    }
+
+    private nonisolated func gpuElapsedNanos(_ cb: MTLCommandBuffer) -> UInt64 {
+        let start = cb.gpuStartTime
+        let end = cb.gpuEndTime
+        guard start.isFinite, end.isFinite, end >= start else { return 0 }
+        return UInt64((end - start) * 1_000_000_000)
     }
 
     public struct GPUClockHoldReport: Sendable, Equatable {

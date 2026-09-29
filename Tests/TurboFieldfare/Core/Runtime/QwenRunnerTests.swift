@@ -87,6 +87,12 @@ import Metal
         } else {
             Issue.record("expected a greedy seed token from the fused head")
         }
+        let profile = try #require(runner.prefillPerformanceDiagnostics)
+        #expect(profile.tokenCount == tokens.count)
+        #expect(profile.chunkCount == 1)
+        #expect(profile.tensorOpsFullAttentionDispatches == 0)
+        #expect(profile.tiledFullAttentionDispatches == 2)
+        #expect(profile.totalMilliseconds >= 0)
 
         try await runner.produce(token: 9, position: 8, into: logits)
         #expect(runner.lastGreedyToken < 1024)

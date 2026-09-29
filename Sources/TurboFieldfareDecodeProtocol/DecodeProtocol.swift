@@ -254,21 +254,69 @@ public struct DecodeRunnerDiagnostics: Codable, Sendable, Equatable {
     }
 }
 
+public struct DecodePrefillPerformanceDiagnostics: Codable, Sendable, Equatable {
+    public var tokenCount: Int
+    public var chunkCount: Int
+    public var totalMilliseconds: Double
+    public var deltaNetAndRouterGPUMilliseconds: Double
+    public var softmaxAttentionAndRouterGPUMilliseconds: Double
+    public var tensorOpsFullAttentionDispatches: Int
+    public var tiledFullAttentionDispatches: Int
+    public var sharedExpertGPUMilliseconds: Double
+    public var routedExpertGPUMilliseconds: Double
+    public var expertFetchWaitMilliseconds: Double
+    public var routeGroupingMilliseconds: Double
+    public var layerTailGPUMilliseconds: Double
+    public var finalHeadGPUMilliseconds: Double
+
+    public init(tokenCount: Int,
+                chunkCount: Int,
+                totalMilliseconds: Double,
+                deltaNetAndRouterGPUMilliseconds: Double,
+                softmaxAttentionAndRouterGPUMilliseconds: Double,
+                tensorOpsFullAttentionDispatches: Int,
+                tiledFullAttentionDispatches: Int,
+                sharedExpertGPUMilliseconds: Double,
+                routedExpertGPUMilliseconds: Double,
+                expertFetchWaitMilliseconds: Double,
+                routeGroupingMilliseconds: Double,
+                layerTailGPUMilliseconds: Double,
+                finalHeadGPUMilliseconds: Double) {
+        self.tokenCount = tokenCount
+        self.chunkCount = chunkCount
+        self.totalMilliseconds = totalMilliseconds
+        self.deltaNetAndRouterGPUMilliseconds = deltaNetAndRouterGPUMilliseconds
+        self.softmaxAttentionAndRouterGPUMilliseconds =
+            softmaxAttentionAndRouterGPUMilliseconds
+        self.tensorOpsFullAttentionDispatches = tensorOpsFullAttentionDispatches
+        self.tiledFullAttentionDispatches = tiledFullAttentionDispatches
+        self.sharedExpertGPUMilliseconds = sharedExpertGPUMilliseconds
+        self.routedExpertGPUMilliseconds = routedExpertGPUMilliseconds
+        self.expertFetchWaitMilliseconds = expertFetchWaitMilliseconds
+        self.routeGroupingMilliseconds = routeGroupingMilliseconds
+        self.layerTailGPUMilliseconds = layerTailGPUMilliseconds
+        self.finalHeadGPUMilliseconds = finalHeadGPUMilliseconds
+    }
+}
+
 public struct DecodePrefillDiagnostics: Codable, Sendable, Equatable {
     public var requestedMode: String
     public var executedMode: String
     public var kvStorageMode: String?
     public var chunkCompleteness: String
     public var unsupportedReason: String?
+    public var performance: DecodePrefillPerformanceDiagnostics?
 
     public init(requestedMode: String, executedMode: String,
                 kvStorageMode: String?, chunkCompleteness: String,
-                unsupportedReason: String?) {
+                unsupportedReason: String?,
+                performance: DecodePrefillPerformanceDiagnostics? = nil) {
         self.requestedMode = requestedMode
         self.executedMode = executedMode
         self.kvStorageMode = kvStorageMode
         self.chunkCompleteness = chunkCompleteness
         self.unsupportedReason = unsupportedReason
+        self.performance = performance
     }
 }
 

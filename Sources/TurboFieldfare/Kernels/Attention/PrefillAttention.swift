@@ -52,6 +52,11 @@ struct PrefillAttentionParams: Sendable, Equatable {
 
 
 final class PrefillAttention {
+    enum ExecutionPath: String, Sendable, Equatable {
+        case causalTiled = "causal-tiled"
+        case tensorOps2D = "tensorops-2d"
+    }
+
     private let context: MetalContext
     private let psoCausalTiled: MTLComputePipelineState
     private let psoParamsSmoke: MTLComputePipelineState
@@ -86,6 +91,7 @@ final class PrefillAttention {
         }
     }
 
+    @discardableResult
     func encodeCausal(commandBuffer: MTLCommandBuffer,
                              q: MTLBuffer, qOffset: Int = 0,
                              k: MTLBuffer, kOffset: Int = 0,
@@ -94,7 +100,7 @@ final class PrefillAttention {
                              params: PrefillAttentionParams,
                              kvRingCapacity: UInt32 = 0,
                              layerKind: PrefillAttentionLayerKind = .full,
-                             path: RuntimePrefillAttentionPath = .causalTiled) {
+                             path: RuntimePrefillAttentionPath = .causalTiled) -> ExecutionPath {
         var effectiveParams = params
         // Only sliding-window layers make an image block bidirectional;
         // full-attention layers stay causal. Zeroed here as well as at the
@@ -140,7 +146,10 @@ final class PrefillAttention {
         precondition(threadCount <= pipeline.maxTotalThreadsPerThreadgroup,
                      "tiled prefill attention requires headDim <= maxTotalThreadsPerThreadgroup")
 
-        guard let enc = commandBuffer.makeComputeCommandEncoder() else { return }
+        let executionPath: ExecutionPath = useTensorOps ? .tensorOps2D : .causalTiled
+        guard let enc = commandBuffer.makeComputeCommandEncoder() else {
+            return executionPath
+        }
         enc.setComputePipelineState(pipeline)
         enc.setBuffer(q, offset: qOffset, index: 0)
         enc.setBuffer(k, offset: kOffset, index: 1)
@@ -159,6 +168,7 @@ final class PrefillAttention {
             groups,
             threadsPerThreadgroup: MTLSize(width: threadCount, height: 1, depth: 1))
         enc.endEncoding()
+        return executionPath
     }
 
 

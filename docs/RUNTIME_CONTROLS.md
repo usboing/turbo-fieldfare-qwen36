@@ -65,9 +65,14 @@ startup, so changing one means restarting the process;
 `--prefill-chunk-tokens auto` resolves to the cap, 2048, there, which allocates
 about 257.3 MB of prefill scratch against about 16.4 MB at the 128 default.
 
-Setting `TURBO_FIELDFARE_PHASES=1` makes the CLI print the decode phase split
-(`cb1`, expert I/O await, `cb2`, and GPU waits) after the timing footer. It is a
-diagnostic and does not change behavior.
+Setting `TURBO_FIELDFARE_PHASES=1` makes the CLI print both the prefill phase
+attribution and decode phase split after generation. Prefill reports GPU time
+for DeltaNet/attention, shared and routed experts, layer tails, and the final
+head; CPU wall time for expert fetches and route grouping; and the selected
+full-attention path. Decode reports `cb1`, expert I/O await, `cb2`, and GPU
+waits. These diagnostics do not change inference behavior. CPU prefill buckets
+can overlap queued GPU work and must not be added to the GPU buckets as if they
+were a partition of total wall time.
 
 ### macOS interactivity mitigation
 

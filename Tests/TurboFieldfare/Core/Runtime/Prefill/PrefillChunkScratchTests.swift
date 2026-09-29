@@ -33,11 +33,11 @@ import Metal
     @Test func layoutClampsChunkSizeToRuntimeBounds() {
         #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 0).chunkTokens == 1)
         // 512 is the first selectable size above the 280-token pooled image
-        // span. Larger requests clamp to this tested ceiling.
-        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 1_024).chunkTokens
+        // span. Larger requests clamp to the tested 2048-token ceiling.
+        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 4_096).chunkTokens
                 == PrefillRuntimeConfig.maxChunkTokens)
-        #expect(PrefillRuntimeConfig.maxChunkTokens == 512)
-        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 512).chunkTokens == 512)
+        #expect(PrefillRuntimeConfig.maxChunkTokens == 2_048)
+        #expect(PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 2_048).chunkTokens == 2_048)
     }
 
     /// `auto` asks for the smallest allowed chunk that covers the prompt,
@@ -48,15 +48,19 @@ import Metal
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 33) == 64)
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 200) == 256)
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 300) == 512)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 700) == 768)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 900) == 1_024)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 1_300) == 1_536)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 1_800) == 2_048)
         // Beyond the ceiling it saturates rather than inventing a size.
-        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 7_019) == 512)
+        #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 7_019) == 2_048)
         // A cap below the ceiling is honoured, so a caller can stay smaller.
         #expect(PrefillRuntimeConfig.autoChunkTokens(promptTokens: 7_019, cap: 64) == 64)
     }
 
     /// The env door and the flag door have to agree on what is legal.
     @Test func requestedChunkSizesSnapToTheAllowedList() {
-        #expect(PrefillRuntimeConfig.supportedChunkTokens(999) == 512)
+        #expect(PrefillRuntimeConfig.supportedChunkTokens(999) == 768)
         #expect(PrefillRuntimeConfig.supportedChunkTokens(200) == 128)
         #expect(PrefillRuntimeConfig.supportedChunkTokens(64) == 64)
         // Below the smallest allowed size there is nothing to snap to, so it
@@ -119,10 +123,18 @@ import Metal
         let at128 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 128)
         let at256 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 256)
         let at512 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 512)
+        let at768 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 768)
+        let at1024 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 1_024)
+        let at1536 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 1_536)
+        let at2048 = PrefillChunkScratchLayout(config: .gemma4_26B_A4B, chunkTokens: 2_048)
         let perToken = at256.totalPersistentBytes - at128.totalPersistentBytes
         #expect(at128.totalPersistentBytes == 16_390_528)
         #expect(at256.totalPersistentBytes == 32_452_992)
         #expect(at512.totalPersistentBytes == 64_577_920)
+        #expect(at768.totalPersistentBytes == 96_702_848)
+        #expect(at1024.totalPersistentBytes == 128_827_776)
+        #expect(at1536.totalPersistentBytes == 193_077_632)
+        #expect(at2048.totalPersistentBytes == 257_327_488)
         #expect(perToken == 128 * 125_488)
         #expect(at128.totalPersistentBytes - 128 * 125_488 == 328_064)
     }

@@ -120,9 +120,9 @@ import Metal
         #expect(runner.lastGreedyToken == reference)
     }
 
-    /// The experimental 512-token chunk must be only a scheduling change. A
-    /// prompt long enough to cross the 128- and 256-token boundaries must end
-    /// with the same state and greedy seed under all three app choices.
+    /// Experimental larger chunks must be only a scheduling change. A prompt
+    /// long enough to cross the 128-, 256-, and 512-token boundaries must end
+    /// with the same state and greedy seed under every app choice.
     @Test func prefillChunkSizesProduceTheSameQwenState() async throws {
         let (dir, ctx, runner) = try makeRunner(maxContext: 640)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -149,7 +149,7 @@ import Metal
             }
         }
 
-        #expect(seeds.count == 3)
+        #expect(seeds.count == AppPrefillTestChunks.values.count)
         #expect(Set(seeds).count == 1)
     }
 
@@ -229,5 +229,5 @@ import Metal
 }
 
 private enum AppPrefillTestChunks {
-    static let values = [128, 256, 512]
+    static let values = [128, 256, 512, 768, 1024, 1536, 2048]
 }

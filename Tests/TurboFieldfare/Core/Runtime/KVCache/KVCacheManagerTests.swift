@@ -104,6 +104,32 @@ import Metal
         #expect(kv.ringCapacity(layer: 5) == 0)
     }
 
+    @Test func oneThousandTwentyFourTokenPrefillRingHasExplicitGeometry() throws {
+        let (_, kv) = try makeManager(maxContext: 4_096,
+                                      fp16RingEnabled: true,
+                                      maxPrefillChunkTokens: 1_024)
+
+        #expect(kv.capacity(layer: 0) == 2_048)
+        #expect(kv.ringCapacity(layer: 0) == 2_048)
+        #expect(kv.keyBuffer(layer: 0, validTokenCount: 0).length == 2_048 * 4_096)
+        #expect(kv.valueBuffer(layer: 0, validTokenCount: 0).length == 2_048 * 4_096)
+        #expect(kv.capacity(layer: 5) == 4_096)
+        #expect(kv.ringCapacity(layer: 5) == 0)
+    }
+
+    @Test func twoThousandFortyEightTokenPrefillRingHasExplicitGeometry() throws {
+        let (_, kv) = try makeManager(maxContext: 4_096,
+                                      fp16RingEnabled: true,
+                                      maxPrefillChunkTokens: 2_048)
+
+        #expect(kv.capacity(layer: 0) == 3_072)
+        #expect(kv.ringCapacity(layer: 0) == 3_072)
+        #expect(kv.keyBuffer(layer: 0, validTokenCount: 0).length == 3_072 * 4_096)
+        #expect(kv.valueBuffer(layer: 0, validTokenCount: 0).length == 3_072 * 4_096)
+        #expect(kv.capacity(layer: 5) == 4_096)
+        #expect(kv.ringCapacity(layer: 5) == 0)
+    }
+
     @Test func fp16Ring_shortSessionCapsSWAToMaxContext() throws {
         let (_, kv) = try makeManager(maxContext: 256,
                                       fp16RingEnabled: true)

@@ -49,9 +49,9 @@ import Testing
     /// An image span is one indivisible block: its features are projected as a
     /// unit, so the planner must never split it even when it exceeds the clamp.
     @Test func anImageSpanPassesThroughWholeEvenWhenItExceedsTheClamp() {
-        let span = 400..<1_000
+        let span = 400..<(400 + PrefillRuntimeConfig.maxChunkTokens + 88)
         let work = PrefillChunkPlanner.multimodalWork(
-            tokenCount: 1_400, imageRanges: [span], chunkTokens: 128)
+            tokenCount: span.upperBound + 400, imageRanges: [span], chunkTokens: 128)
         let images = work.filter(\.isImage)
         #expect(images.count == 1)
         #expect(images.first?.range == span)

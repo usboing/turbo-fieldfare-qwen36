@@ -85,10 +85,10 @@ public struct ServerArguments: Equatable, Sendable {
                                  Prefill chunk size: \(RuntimeConfiguration.allowedValueList(RuntimeConfiguration.allowedPrefillChunkTokens, alsoAccepting: ["auto"]))
                                  (default 128). Each chunk re-reads the routed
                                  expert pool, so larger chunks read less; auto
-                                 runs at the cap, 512, which prefills every
+                                 runs at the cap, 2048, which prefills every
                                  prompt in the same spans a per-request size
                                  would. Prefill scratch is sized from the chunk,
-                                 so the cap holds about 64.6 MB of it against
+                                 so the cap holds about 257.3 MB of it against
                                  16.4 MB at 128.
       --rdadvise <s>             Read-advice policy: off, default, bounded, or adaptive
                                  (default off).

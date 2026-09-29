@@ -46,7 +46,7 @@ public struct RuntimeConfiguration: Sendable, Equatable {
     /// server's usage and rejections all render the same sets.
     ///
     /// `alsoAccepting` appends parse-level aliases after the integers, so
-    /// `--prefill-chunk-tokens` renders "32, 64, 128, 256, 512, or auto". They come
+    /// `--prefill-chunk-tokens` renders the shared allowed list plus `auto`. They come
     /// last because they are not members of the array the guards test, and
     /// because the help line's integers are read back by
     /// `usageNamesExactlyTheAllowedValues`.

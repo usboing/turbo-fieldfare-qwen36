@@ -14,14 +14,13 @@ validated separately.
    focused tests passed. Real 2,940- and 8,816-token profiles identified tiled
    full attention as 31% and 66% of wall time respectively; see
    `QWEN36_PREFILL_PROFILE.md`.
-4. **In progress — Test 4096-token chunks.** Correctness and the full 1,425-test
+4. **Complete — Test 4096-token chunks.** Correctness and the full 1,425-test
    package gate pass.
    At 2,940 tokens, one 4096 chunk measured 35.46 s versus the frozen 40.96 s
-   two-chunk baseline. At 8,816 tokens, a same-session 4096/2048 pair measured
-   232.53/272.15 s, but both drifted from the earlier 227.16 s baseline and the
-   later run was slower, consistent with thermal or system-state bias. Finish an
-   order-balanced comparison before promotion.
-5. **Pending — Scale through 16K/32K/64K.** Check correctness, memory,
+   two-chunk baseline. The order-balanced 8,816-token comparison split: 4096
+   won when first, while 2048 won narrowly when first. Keep 4096 selectable and
+   experimental; retain 2048 as the stable general-purpose setting.
+5. **In progress — Scale through 16K/32K/64K.** Check correctness, memory,
    sustained thermals, prefill time, and decode rate near each context bound.
 6. **Pending — Optimize the measured prefill bottleneck.** Choose Qwen
    TensorOps full attention, DeltaNet, or expert I/O only after attribution.

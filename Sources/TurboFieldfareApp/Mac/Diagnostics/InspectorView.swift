@@ -407,6 +407,21 @@ struct InspectorView: View {
                 .foregroundStyle(.secondary)
             Toggle("Prefill", isOn: $model.runtimeOptions.prefillEnabled)
                 .accessibilityIdentifier(.inspectorPrefill)
+            if model.runtimeOptions.prefillEnabled {
+                LabeledContent("Prefill chunk") {
+                    Picker("Prefill chunk", selection: $model.runtimeOptions.prefillChunkTokens) {
+                        ForEach(AppRuntimeOptions.appPrefillChunkTokens, id: \.self) { tokens in
+                            Text("\(tokens)").tag(tokens)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+                Text("Larger chunks reduce repeated expert reads but use more temporary GPU memory. "
+                    + "512 is experimental.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             VStack(alignment: .leading, spacing: 8) {
                 Text("RDADVISE")
                 Picker("RDADVISE", selection: $model.runtimeOptions.rdadvisePolicy) {

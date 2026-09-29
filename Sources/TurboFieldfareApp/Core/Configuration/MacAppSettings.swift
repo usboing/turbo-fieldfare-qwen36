@@ -14,6 +14,7 @@ struct MacAppSettings: Codable, Equatable, Sendable {
     var topPEnabled: Bool = true
     var topP: Double = 0.95
     var prefillEnabled: Bool = true
+    var prefillChunkTokens: Int = 128
     var newlineShortcut: AppNewlineShortcut = .return
     var showPromptExamples: Bool = true
     var textSize: AppTextSize = .standard
@@ -38,6 +39,7 @@ struct MacAppSettings: Codable, Equatable, Sendable {
         case topPEnabled
         case topP
         case prefillEnabled
+        case prefillChunkTokens
         case newlineShortcut
         case showPromptExamples
         case textSize
@@ -57,6 +59,7 @@ struct MacAppSettings: Codable, Equatable, Sendable {
          topPEnabled: Bool = true,
          topP: Double = 0.95,
          prefillEnabled: Bool = true,
+         prefillChunkTokens: Int = 128,
          newlineShortcut: AppNewlineShortcut = .return,
          showPromptExamples: Bool = true,
          textSize: AppTextSize = .standard,
@@ -74,6 +77,7 @@ struct MacAppSettings: Codable, Equatable, Sendable {
         self.topPEnabled = topPEnabled
         self.topP = topP
         self.prefillEnabled = prefillEnabled
+        self.prefillChunkTokens = prefillChunkTokens
         self.newlineShortcut = newlineShortcut
         self.showPromptExamples = showPromptExamples
         self.textSize = textSize
@@ -95,6 +99,9 @@ struct MacAppSettings: Codable, Equatable, Sendable {
         topPEnabled = try container.decode(Bool.self, forKey: .topPEnabled)
         topP = try container.decode(Double.self, forKey: .topP)
         prefillEnabled = try container.decode(Bool.self, forKey: .prefillEnabled)
+        prefillChunkTokens = try container.decodeIfPresent(
+            Int.self,
+            forKey: .prefillChunkTokens) ?? 128
         newlineShortcut = try container.decodeIfPresent(
             AppNewlineShortcut.self,
             forKey: .newlineShortcut) ?? .return
@@ -139,6 +146,7 @@ struct MacAppSettings: Codable, Equatable, Sendable {
             && temperature.isFinite && (0...2).contains(temperature)
             && (1...256).contains(topK)
             && topP.isFinite && (0.01...1).contains(topP)
+            && AppRuntimeOptions.allowedPrefillChunkTokens.contains(prefillChunkTokens)
     }
 }
 

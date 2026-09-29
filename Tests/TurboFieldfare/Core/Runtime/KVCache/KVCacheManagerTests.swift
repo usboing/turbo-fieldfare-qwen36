@@ -91,6 +91,19 @@ import Metal
         #expect(kv.keyBuffer(layer: 5, validTokenCount: 0).length == 4096 * 2048)
     }
 
+    @Test func fiveHundredTwelveTokenPrefillRingHasExplicitGeometry() throws {
+        let (_, kv) = try makeManager(maxContext: 4_096,
+                                      fp16RingEnabled: true,
+                                      maxPrefillChunkTokens: 512)
+
+        #expect(kv.capacity(layer: 0) == 1_536)
+        #expect(kv.ringCapacity(layer: 0) == 1_536)
+        #expect(kv.keyBuffer(layer: 0, validTokenCount: 0).length == 1_536 * 4_096)
+        #expect(kv.valueBuffer(layer: 0, validTokenCount: 0).length == 1_536 * 4_096)
+        #expect(kv.capacity(layer: 5) == 4_096)
+        #expect(kv.ringCapacity(layer: 5) == 0)
+    }
+
     @Test func fp16Ring_shortSessionCapsSWAToMaxContext() throws {
         let (_, kv) = try makeManager(maxContext: 256,
                                       fp16RingEnabled: true)

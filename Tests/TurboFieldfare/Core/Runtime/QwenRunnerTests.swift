@@ -9,7 +9,7 @@ import Metal
 /// and the KV-cache + GDN-state reset interplay.
 @Suite struct QwenRunnerTests {
 
-    private func makeRunner() throws -> (URL, MetalContext, RealForwardRunner) {
+    private func makeRunner(maxContext: Int = 64) throws -> (URL, MetalContext, RealForwardRunner) {
         let dir = try QwenToySynthetic.write()
         let ctx = try MetalContext()
         let model = try Model.load(directoryURL: dir,
@@ -17,7 +17,7 @@ import Metal
                                    expecting: .qwen36Toy())
         let runner = try RealForwardRunner(model: model,
                                            context: ctx,
-                                           maxContext: 64)
+                                           maxContext: maxContext)
         return (dir, ctx, runner)
     }
 
@@ -120,6 +120,39 @@ import Metal
         #expect(runner.lastGreedyToken == reference)
     }
 
+    /// The experimental 512-token chunk must be only a scheduling change. A
+    /// prompt long enough to cross the 128- and 256-token boundaries must end
+    /// with the same state and greedy seed under all three app choices.
+    @Test func prefillChunkSizesProduceTheSameQwenState() async throws {
+        let (dir, ctx, runner) = try makeRunner(maxContext: 640)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let logits = try makeLogits(ctx, vocab: 1024)
+        let tokens = (0..<600).map { Int32(($0 % 1_023) + 1) }
+        var seeds: [UInt32] = []
+
+        for chunkTokens in AppPrefillTestChunks.values {
+            runner.reset()
+            var completed = 0
+            let result = try await runner.prefillChunked(
+                tokens: tokens[...],
+                startPosition: 0,
+                outputMode: .greedyIfAvailable,
+                config: .production(chunkTokens: chunkTokens),
+                into: logits,
+                onProgress: { completed = $0 })
+            #expect(result.newPosition == tokens.count)
+            #expect(completed == tokens.count)
+            if case .greedyToken(let token) = result.seed {
+                seeds.append(token)
+            } else {
+                Issue.record("expected a greedy seed for chunk size \(chunkTokens)")
+            }
+        }
+
+        #expect(seeds.count == 3)
+        #expect(Set(seeds).count == 1)
+    }
+
     /// (b) KV manager + GDN state manager interplay under the qwen mask:
     /// linear layers carry no per-token KV storage, full layers are linear
     /// append-only, and reset() returns both to the empty-context state.
@@ -193,4 +226,8 @@ import Metal
         #expect(gemma.sharedScalarGateElements == 0)
         #expect(gemma.qElements == 128 * gemma.maxQElementsPerToken)
     }
+}
+
+private enum AppPrefillTestChunks {
+    static let values = [128, 256, 512]
 }

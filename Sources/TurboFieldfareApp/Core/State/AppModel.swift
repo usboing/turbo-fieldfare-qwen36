@@ -250,6 +250,7 @@ public final class AppModel {
         self.runtimeOptions = AppRuntimeOptions(
             expertCacheSlots: settings.expertCacheSlots,
             prefillEnabled: settings.prefillEnabled,
+            prefillChunkTokens: settings.prefillChunkTokens,
             rdadvisePolicy: settings.rdadvisePolicy,
             visionResidencyPolicy: .onDemand)
         let admitted = Self.admittedContext(settings.contextTokens,
@@ -2039,6 +2040,7 @@ public final class AppModel {
         runtimeOptions = AppRuntimeOptions(
             expertCacheSlots: settings.expertCacheSlots,
             prefillEnabled: settings.prefillEnabled,
+            prefillChunkTokens: settings.prefillChunkTokens,
             rdadvisePolicy: settings.rdadvisePolicy,
             // Pinned for the same reason as `init`: the app always releases the
             // image tower. Reading the persisted value here would let a
@@ -2078,6 +2080,7 @@ public final class AppModel {
             topPEnabled: topPEnabled,
             topP: topP,
             prefillEnabled: runtimeOptions.prefillEnabled,
+            prefillChunkTokens: runtimeOptions.prefillChunkTokens,
             newlineShortcut: newlineShortcut,
             showPromptExamples: showPromptExamples,
             textSize: textSize,

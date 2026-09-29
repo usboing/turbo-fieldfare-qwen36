@@ -61,6 +61,7 @@ public enum AppModelVerification: String, CaseIterable, Sendable, Identifiable {
 public struct AppRuntimeOptions: Equatable, Sendable {
     public static let allowedSlotCounts = RuntimeConfiguration.allowedExpertCacheSlots
     public static let allowedPrefillChunkTokens = RuntimeConfiguration.allowedPrefillChunkTokens
+    public static let appPrefillChunkTokens = allowedPrefillChunkTokens.filter { $0 >= 128 }
 
     public var expertCacheSlots: Int
     public var expertCachePolicy: AppExpertCachePolicy

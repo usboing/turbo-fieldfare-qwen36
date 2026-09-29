@@ -540,6 +540,25 @@ import Testing
         #expect(reloaded.rdadvisePolicy == .bounded)
     }
 
+    @Test func prefillChunkSizeSurvivesARelaunchAndOlderFilesDefaultTo128() throws {
+        let root = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let modelDirectory = root.appendingPathComponent("gemma4.gturbo", isDirectory: true)
+
+        try MacAppSettingsFileStore.save(
+            MacAppSettings(prefillChunkTokens: 512),
+            forModelDirectory: modelDirectory)
+        let reloaded = MacAppSettingsFileStore.loadOrCreate(forModelDirectory: modelDirectory)
+        #expect(reloaded.prefillChunkTokens == 512)
+
+        let older = Data("""
+        {"version":3,"contextTokens":8192,"expertCacheSlots":16,
+        "temperature":0.2,"topKEnabled":true,"topK":64,"topPEnabled":true,
+        "topP":0.95,"prefillEnabled":true}
+        """.utf8)
+        #expect(try JSONDecoder().decode(MacAppSettings.self, from: older).prefillChunkTokens == 128)
+    }
+
     private func makeTemporaryRoot() throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacAppSettingsTests-\(UUID().uuidString)",

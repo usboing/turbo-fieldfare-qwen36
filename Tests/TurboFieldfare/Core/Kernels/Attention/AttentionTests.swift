@@ -44,6 +44,17 @@ import TurboFieldfareValidationSupport
         #expect(full.chunkLength == 96)
         #expect(full.partialThreadgroups == 256)
         #expect(!full.useSWAGroupedPartial)
+
+        let qwenFull = Attention.splitGeometry(headDim: 256,
+                                               numQHeads: 16,
+                                               numKVHeads: 2,
+                                               seqLen: 1536,
+                                               kvStart: 0,
+                                               preferGQASWA: false)
+        #expect(qwenFull.numChunks == 64)
+        #expect(qwenFull.chunkLength == 24)
+        #expect(qwenFull.partialThreadgroups == 128)
+        #expect(qwenFull.useQwenFullGroupedPartial)
     }
 
     // MARK: - Gemma 4 scale=1.0 path

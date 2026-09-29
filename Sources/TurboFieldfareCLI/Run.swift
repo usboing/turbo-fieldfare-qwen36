@@ -287,6 +287,13 @@ public func run(args: Args,
             lines += "  cb2 encode+commit: " + ms(runner.totalCb2Nanos) + " ms\n"
             lines += "  unaccounted (GPU waits): "
             lines += String(format: "%.1f", total - accounted) + " ms\n"
+            let hold = runner.gpuClockHoldReport
+            lines += "  gpu clock hold:    " + hold.policy.rawValue
+            if hold.policy != .off {
+                lines += String(format: ", %llu command buffers, %.1f s active",
+                                hold.submittedCommandBuffers, hold.activeSeconds)
+            }
+            lines += "\n"
             stderr.write(Data(lines.utf8))
         }
         if !args.quiet {

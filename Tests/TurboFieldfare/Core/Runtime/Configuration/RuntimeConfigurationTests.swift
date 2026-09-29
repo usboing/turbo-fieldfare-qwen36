@@ -13,6 +13,7 @@ import Testing
         #expect(runtime.prefillChunkTokens == 128)
         #expect(runtime.prefillAttentionPath == .fullTensorOps2DPreferred)
         #expect(runtime.headPath == .fusedRows)
+        #expect(runtime.gpuClockHold == .auto)
     }
 
     @Test func retainedControlsReachTypedRuntime() {
@@ -23,13 +24,22 @@ import Testing
             prefillEnabled: false,
             prefillChunkTokens: 64,
             prefillAttentionPath: .causalTiled,
-            forceLogitsHead: true)
+            forceLogitsHead: true,
+            gpuClockHold: .off)
         #expect(runtime.expertCacheSlots == 32)
         #expect(runtime.modelExpertCachePolicy == .lru)
         #expect(runtime.rdadviseEnabled)
         #expect(runtime.prefillConfig == .off)
         #expect(runtime.prefillAttentionPath == .causalTiled)
         #expect(runtime.headPath == .logits)
+        #expect(runtime.gpuClockHold == .off)
+    }
+
+    @Test func gpuClockHoldPolicyRespectsLowPowerMode() {
+        #expect(RuntimeGPUClockHold.auto.holds(lowPowerMode: false))
+        #expect(!RuntimeGPUClockHold.auto.holds(lowPowerMode: true))
+        #expect(RuntimeGPUClockHold.on.holds(lowPowerMode: true))
+        #expect(!RuntimeGPUClockHold.off.holds(lowPowerMode: false))
     }
 
     @Test(arguments: [32, 64, 128])

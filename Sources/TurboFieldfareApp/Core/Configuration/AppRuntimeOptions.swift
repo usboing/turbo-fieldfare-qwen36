@@ -4,9 +4,18 @@ import TurboFieldfare
 public enum AppExpertCachePolicy: String, CaseIterable, Sendable, Identifiable {
     case lfu
     case lru
+    case lfuAging = "lfu-aging"
 
     public var id: String { rawValue }
     public var label: String { rawValue.uppercased() }
+
+    var runtimeValue: RuntimeExpertCachePolicy {
+        switch self {
+        case .lfu: return .lfu
+        case .lru: return .lru
+        case .lfuAging: return .lfuAging
+        }
+    }
 }
 
 public enum AppRDAdvicePolicy: String, Codable, CaseIterable, Sendable, Identifiable {
@@ -122,7 +131,7 @@ public struct AppRuntimeOptions: Equatable, Sendable {
         try validate()
         return RuntimeConfiguration(
             expertCacheSlots: expertCacheSlots,
-            expertCachePolicy: expertCachePolicy == .lru ? .lru : .lfu,
+            expertCachePolicy: expertCachePolicy.runtimeValue,
             rdadvisePolicy: rdadvisePolicy.runtimeValue,
             prefillEnabled: prefillEnabled,
             prefillChunkTokens: prefillChunkTokens,

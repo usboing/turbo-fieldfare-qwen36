@@ -238,6 +238,9 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
     private let sharedExpertProjections: [LayerSharedExpertProjections]
 
     public let maxContext: Int
+    private let clockHold: GPUClockHold?
+    private let clockHoldPolicy: RuntimeGPUClockHold
+    static let clockHoldKeepAliveSeconds = 0.25
 
     /// Per-instance head and RDADVISE modes. The fused head (default) skips the
     /// 512 KB logits write and leaves a greedy argmax in `lastGreedyToken`;
@@ -267,6 +270,10 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                 byteCap: Self.rdadviseAdaptiveByteCap,
                 slowCallNanos: Self.rdadviseAdaptiveSlowCallNanos))
         self.rdadviseEnabled = runtimeConfiguration.rdadviseEnabled
+        self.clockHoldPolicy = runtimeConfiguration.gpuClockHold
+        self.clockHold = runtimeConfiguration.gpuClockHold == .off
+            ? nil
+            : try GPUClockHold(device: context.device, library: context.library)
         self.kv = try KVCacheManager(device: context.device,
                                      config: cfg,
                                      maxContext: maxContext,
@@ -1746,6 +1753,7 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
                               into logits: MTLBuffer,
                               emitHead: Bool,
                               outputMode: PrefillOutputMode) async throws {
+        touchClockHold()
         let kvPosition = kv?.position ?? 0
         guard kvPosition == position else {
             throw PrefillError.prefillCursorMismatch(
@@ -2467,6 +2475,25 @@ public final class RealForwardRunner: ChunkedPrefillRunner, MultimodalPrefillRun
 
     private nonisolated func waitUntilCompleted(_ cb: MTLCommandBuffer) {
         cb.waitUntilCompleted()
+    }
+
+    public struct GPUClockHoldReport: Sendable, Equatable {
+        public let policy: RuntimeGPUClockHold
+        public let submittedCommandBuffers: UInt64
+        public let activeSeconds: Double
+    }
+
+    public var gpuClockHoldReport: GPUClockHoldReport {
+        GPUClockHoldReport(policy: clockHoldPolicy,
+                           submittedCommandBuffers: clockHold?.submittedCommandBuffers ?? 0,
+                           activeSeconds: clockHold?.activeSeconds ?? 0)
+    }
+
+    func touchClockHold() {
+        guard let clockHold,
+              clockHoldPolicy.holds(lowPowerMode: ProcessInfo.processInfo.isLowPowerModeEnabled)
+        else { return }
+        clockHold.touch(seconds: Self.clockHoldKeepAliveSeconds)
     }
 
 }

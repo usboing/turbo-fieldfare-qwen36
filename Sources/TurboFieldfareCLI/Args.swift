@@ -25,6 +25,7 @@ public struct Args: Equatable, Sendable {
     /// is known, which needs the tokenizer and, for images, their geometry.
     public var prefillChunkTokensAuto: Bool
     public var rdadvisePolicy: RDAdvicePolicyMode
+    public var gpuClockHold: RuntimeGPUClockHold
 
     public init(model: String,
                 prompt: String? = nil,
@@ -47,7 +48,8 @@ public struct Args: Equatable, Sendable {
                 prefillPolicy: RuntimePrefillPolicy = RuntimeConfiguration.production.prefillPolicy,
                 prefillChunkTokens: Int = RuntimeConfiguration.production.prefillChunkTokens,
                 prefillChunkTokensAuto: Bool = false,
-                rdadvisePolicy: RDAdvicePolicyMode = RuntimeConfiguration.production.rdadvisePolicy) {
+                rdadvisePolicy: RDAdvicePolicyMode = RuntimeConfiguration.production.rdadvisePolicy,
+                gpuClockHold: RuntimeGPUClockHold = RuntimeConfiguration.production.gpuClockHold) {
         self.model = model
         self.prompt = prompt
         self.chatPrompt = chatPrompt
@@ -70,6 +72,7 @@ public struct Args: Equatable, Sendable {
         self.prefillChunkTokens = prefillChunkTokens
         self.prefillChunkTokensAuto = prefillChunkTokensAuto
         self.rdadvisePolicy = rdadvisePolicy
+        self.gpuClockHold = gpuClockHold
     }
 }
 
@@ -143,7 +146,7 @@ extension Args {
       --stop <string>            Stop substring (repeatable).
       --quiet                    Suppress the timing footer.
       --expert-cache-slots <n>   Expert-cache slots: \(RuntimeConfiguration.allowedValueList(RuntimeConfiguration.allowedExpertCacheSlots)) (default 16).
-      --expert-cache-policy <s>  Expert-cache policy: lfu or lru (default lfu).
+      --expert-cache-policy <s>  Expert-cache policy: lfu-aging, lfu, or lru (default lfu).
       --prefill on|off           Enable or disable chunked prompt prefill (default on).
                                  Chunked prefill requires 16 or more cache slots.
       --prefill-chunk-tokens <n|auto>
@@ -152,6 +155,7 @@ extension Args {
                                  expert pool, so larger chunks read less; auto
                                  picks the smallest size that covers the prompt.
       --rdadvise <s>             Read-advice policy: off, default, bounded, or adaptive (default off).
+      --gpu-clock-hold <s>       GPU clock policy: auto, on, or off (default auto).
       --help                     Show this message.
     """
 
@@ -190,7 +194,8 @@ extension Args {
             rdadvisePolicy: rdadvisePolicy,
             prefillEnabled: prefillPolicy == .chunked,
             prefillChunkTokens: prefillChunkTokens,
-            forceLogitsHead: forceLogitsHead)
+            forceLogitsHead: forceLogitsHead,
+            gpuClockHold: gpuClockHold)
     }
 
     public static func parse(_ argv: [String]) throws -> Args {
@@ -217,6 +222,7 @@ extension Args {
         var prefillChunkTokens = runtimeDefaults.prefillChunkTokens
         var prefillChunkTokensAuto = false
         var rdadvisePolicy = runtimeDefaults.rdadvisePolicy
+        var gpuClockHold = runtimeDefaults.gpuClockHold
 
         var index = 0
         while index < argv.count {
@@ -334,6 +340,12 @@ extension Args {
                     throw ArgsError.invalidValue(flag: flag, value: value)
                 }
                 rdadvisePolicy = parsed
+            case "--gpu-clock-hold":
+                let value = try takeValue(argv, &index, flag: flag)
+                guard let parsed = RuntimeGPUClockHold(rawValue: value) else {
+                    throw ArgsError.invalidValue(flag: flag, value: value)
+                }
+                gpuClockHold = parsed
             default:
                 throw ArgsError.unknownFlag(flag)
             }
@@ -394,7 +406,8 @@ extension Args {
                              prefillPolicy: prefillPolicy,
                              prefillChunkTokens: prefillChunkTokens,
                              prefillChunkTokensAuto: prefillChunkTokensAuto,
-                             rdadvisePolicy: rdadvisePolicy)
+                             rdadvisePolicy: rdadvisePolicy,
+                             gpuClockHold: gpuClockHold)
         _ = try arguments.resolvedRuntimeConfiguration(forceLogitsHead: false)
         return arguments
     }

@@ -14,9 +14,24 @@ public enum RuntimePrefillAttentionPath: String, Codable, Sendable {
     case fullTensorOps2DValidityV2 = "full-tensorops-2d-validity-v2"
 }
 
-public enum RuntimeExpertCachePolicy: String, Codable, Sendable {
+public enum RuntimeExpertCachePolicy: String, Codable, Sendable, CaseIterable {
     case lfu
     case lru
+    case lfuAging = "lfu-aging"
+}
+
+public enum RuntimeGPUClockHold: String, Codable, Sendable, CaseIterable {
+    case auto
+    case on
+    case off
+
+    public func holds(lowPowerMode: Bool) -> Bool {
+        switch self {
+        case .auto: return !lowPowerMode
+        case .on: return true
+        case .off: return false
+        }
+    }
 }
 
 public struct RuntimeConfiguration: Sendable, Equatable {
@@ -54,6 +69,7 @@ public struct RuntimeConfiguration: Sendable, Equatable {
     public let prefillChunkTokens: Int
     public let prefillAttentionPath: RuntimePrefillAttentionPath
     public let headPath: RuntimeHeadPath
+    public let gpuClockHold: RuntimeGPUClockHold
 
     public init(expertCacheSlots: Int = 16,
                 expertCachePolicy: RuntimeExpertCachePolicy = .lfu,
@@ -61,7 +77,8 @@ public struct RuntimeConfiguration: Sendable, Equatable {
                 prefillEnabled: Bool = true,
                 prefillChunkTokens: Int = 128,
                 prefillAttentionPath: RuntimePrefillAttentionPath = .fullTensorOps2DPreferred,
-                forceLogitsHead: Bool = false) {
+                forceLogitsHead: Bool = false,
+                gpuClockHold: RuntimeGPUClockHold = .auto) {
         precondition(Self.allowedExpertCacheSlots.contains(expertCacheSlots),
                      "unsupported expert-cache slot count")
         precondition(Self.allowedPrefillChunkTokens.contains(prefillChunkTokens),
@@ -73,6 +90,7 @@ public struct RuntimeConfiguration: Sendable, Equatable {
         self.prefillChunkTokens = prefillChunkTokens
         self.prefillAttentionPath = prefillAttentionPath
         self.headPath = forceLogitsHead ? .logits : .fusedRows
+        self.gpuClockHold = gpuClockHold
     }
 
     public static var production: RuntimeConfiguration {
@@ -90,6 +108,10 @@ public struct RuntimeConfiguration: Sendable, Equatable {
         }
     }
     public var modelExpertCachePolicy: ExpertCachePolicy {
-        expertCachePolicy == .lru ? .lru : .lfu
+        switch expertCachePolicy {
+        case .lfu: return .lfu
+        case .lru: return .lru
+        case .lfuAging: return .lfuAging
+        }
     }
 }

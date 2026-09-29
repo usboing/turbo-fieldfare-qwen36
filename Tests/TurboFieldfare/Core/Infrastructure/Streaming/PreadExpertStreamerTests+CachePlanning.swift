@@ -149,3 +149,43 @@ extension PreadExpertStreamerTests {
   }
 
 }
+
+extension PreadExpertStreamerTests {
+  private func runAgingScenario(policy: ExpertCachePolicy) throws
+    -> (victim: Int, slotOfX: Int, slotOfY: Int) {
+    let url = try Self.writeSyntheticLayer()
+    defer { try? FileManager.default.removeItem(at: url) }
+    let device = try MetalContext().device
+    let streamer = try PreadExpertStreamer(
+      layout: Self.makeLayout(path: url.path), device: device,
+      slotCount: 3, cachePolicy: policy)
+    let x = 0, y = 1, z = 2, w = 3
+    func plan(_ experts: [Int]) throws -> [Int] {
+      let plan = streamer.planExpertsCached(experts: experts)
+      _ = try streamer.executeExpertCachePlan(plan)
+      return plan.assignedSlots
+    }
+    let slotOfX = try plan([x])[0]
+    for _ in 0..<9 { _ = try plan([x]) }
+    let slotOfY = try plan([y])[0]
+    _ = try plan([y])
+    for _ in 0..<20 { _ = try plan([z]) }
+    for _ in 0..<5 { _ = try plan([y]) }
+    let victimSlot = try plan([w])[0]
+    return (victimSlot, slotOfX, slotOfY)
+  }
+
+  @Test func agingHalvesUseCountsEveryThirtyTwoPlans() throws {
+    let aged = try runAgingScenario(policy: .lfuAging)
+    #expect(aged.victim == aged.slotOfX)
+  }
+
+  @Test func plainLFUKeepsTheEarlyLeader() throws {
+    let plain = try runAgingScenario(policy: .lfu)
+    #expect(plain.victim == plain.slotOfY)
+  }
+
+  @Test func agingPeriodIsThirtyTwoPlans() {
+    #expect(PreadExpertStreamer.agingPeriod == 32)
+  }
+}

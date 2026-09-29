@@ -5,6 +5,10 @@ import SwiftUI
 
 struct InspectorView: View {
     @Bindable var model: AppModel
+    @AppStorage(
+        AppInferenceExecutionMode.preferenceKey,
+        store: UserDefaults(suiteName: "TurboFieldfare")
+    ) private var inferenceModeRaw = AppInferenceExecutionMode.decodeService.rawValue
 
     var body: some View {
         Form {
@@ -387,6 +391,20 @@ struct InspectorView: View {
 
     private var runtimeSection: some View {
         Section("Runtime") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Inference")
+                Picker("Inference", selection: inferenceModeBinding) {
+                    ForEach(AppInferenceExecutionMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text("Fast runs inference inside the app for maximum performance. "
+                + "Isolated keeps inference in a separate process. Changes apply after relaunch.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Toggle("Prefill", isOn: $model.runtimeOptions.prefillEnabled)
                 .accessibilityIdentifier(.inspectorPrefill)
             VStack(alignment: .leading, spacing: 8) {
@@ -411,6 +429,14 @@ struct InspectorView: View {
         }
         .disabled(model.isRunning || model.loadState.isLoading
             || model.isVisionFilesystemMutationInProgress)
+    }
+
+    private var inferenceModeBinding: Binding<AppInferenceExecutionMode> {
+        Binding(
+            get: {
+                AppInferenceExecutionMode(rawValue: inferenceModeRaw) ?? .decodeService
+            },
+            set: { inferenceModeRaw = $0.rawValue })
     }
 
 }

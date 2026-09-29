@@ -9,6 +9,7 @@ struct AttentionSplitGeometry: Sendable, Equatable {
     let partialThreadgroups: Int
     let useSWAGroupedPartial: Bool
     let useFullGroupedVectorPartial: Bool
+    let useQwenFullGroupedPartial: Bool
 }
 
 
@@ -27,6 +28,8 @@ struct AttentionSplitGeometry: Sendable, Equatable {
 final class Attention {
     private let ctx: MetalContext
     private let psoGroupedVecFull: MTLComputePipelineState
+    private let psoQwenGQAFull: MTLComputePipelineState
+    private let psoQwenGQAFullChunks16: MTLComputePipelineState
     private let psoPartial: MTLComputePipelineState
     private let psoGQAPartial: MTLComputePipelineState
     private let psoCombine: MTLComputePipelineState
@@ -67,6 +70,12 @@ final class Attention {
         self.psoGroupedVecFull = try Self.specializedPipeline(
             context, "attention_decode_full_grouped_vec_partial",
             headDim: 512, numQHeads: 16, numKVHeads: 2)
+        self.psoQwenGQAFull = try Self.specializedPipeline(
+            context, "attention_decode_gqa_full_partial",
+            headDim: 256, numQHeads: 16, numKVHeads: 2)
+        self.psoQwenGQAFullChunks16 = try Self.specializedPipeline(
+            context, "attention_decode_gqa_full_partial",
+            headDim: 256, numQHeads: 16, numKVHeads: 2, numChunks: 16)
         self.psoPartial = try context.pipeline("attention_decode_partial")
         self.psoGQAPartial = try context.pipeline("attention_decode_gqa_swa_partial")
         self.psoCombine = try context.pipeline("attention_decode_combine")
@@ -148,20 +157,24 @@ final class Attention {
         let useSWAGQAPartial = preferGQASWA && qPerKV <= 2
         let useGroupedVector = forceGroupedVector && !preferGQASWA
             && headDim == 512 && numQHeads == 16 && numKVHeads == 2
+        let useQwenFullGrouped = !preferGQASWA
+            && headDim == 256 && numQHeads == 16 && numKVHeads == 2
         let effectiveLength = Int(seqLen) - Int(kvStart)
         let baseChunks = Self.chunkCount(effLen: effectiveLength,
                                          preferGQASWA: useSWAGQAPartial)
-        let numChunks = useSWAGQAPartial
+        let grouped = useSWAGQAPartial || useQwenFullGrouped
+        let numChunks = grouped
             ? max(baseChunks, min(Self.maxChunks, baseChunks * qPerKV))
             : baseChunks
         let chunkLength = (max(1, effectiveLength) + numChunks - 1) / numChunks
-        let partialHeadGroups = (useSWAGQAPartial || useGroupedVector) ? Int(numKVHeads) : Int(numQHeads)
+        let partialHeadGroups = (grouped || useGroupedVector) ? Int(numKVHeads) : Int(numQHeads)
         return AttentionSplitGeometry(effectiveLength: effectiveLength,
                                       numChunks: numChunks,
                                       chunkLength: chunkLength,
                                       partialThreadgroups: partialHeadGroups * numChunks,
                                       useSWAGroupedPartial: useSWAGQAPartial,
-                                      useFullGroupedVectorPartial: useGroupedVector)
+                                      useFullGroupedVectorPartial: useGroupedVector,
+                                      useQwenFullGroupedPartial: useQwenFullGrouped)
     }
 
 
@@ -260,7 +273,11 @@ final class Attention {
         let useSWAGQAPartial = geometry.useSWAGroupedPartial
         let nChunks = geometry.numChunks
         let chunkLen = geometry.chunkLength
-        let partialPSO = geometry.useFullGroupedVectorPartial ? psoGroupedVecFull : partialPipeline(headDim: headDim,
+        let partialPSO = geometry.useFullGroupedVectorPartial
+            ? psoGroupedVecFull
+            : geometry.useQwenFullGroupedPartial
+                ? (nChunks == 16 ? psoQwenGQAFullChunks16 : psoQwenGQAFull)
+                : partialPipeline(headDim: headDim,
                                          numQHeads: numQHeads,
                                          numKVHeads: numKVHeads,
                                          numChunks: nChunks,

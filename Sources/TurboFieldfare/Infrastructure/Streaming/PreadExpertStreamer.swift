@@ -51,12 +51,14 @@ public struct ExpertCachePlan: Sendable, Equatable {
 public enum ExpertCachePolicy: String, Sendable {
     case lru
     case lfu
+    case lfuAging = "lfu-aging"
 }
 
 /// `pread`-based routed-expert streamer with a fixed per-layer slot cache.
 public final class PreadExpertStreamer: @unchecked Sendable {
     public static let scratchAlignment = 2 * 1024 * 1024
     public static var cachePolicyDefault: ExpertCachePolicy { .lfu }
+    public static let agingPeriod = 32
 
     public let layout: StreamLayout
     public let slotCount: Int
@@ -250,6 +252,11 @@ public final class PreadExpertStreamer: @unchecked Sendable {
         useClock = clock
         for expert in experts where expert >= 0 && expert < expertUseCount.count {
             expertUseCount[expert] &+= 1
+        }
+        if cachePolicy == .lfuAging, clock % Self.agingPeriod == 0 {
+            for index in expertUseCount.indices {
+                expertUseCount[index] >>= 1
+            }
         }
         for slot in assignedSlots where slot >= 0 {
             slotLastUse[slot] = clock

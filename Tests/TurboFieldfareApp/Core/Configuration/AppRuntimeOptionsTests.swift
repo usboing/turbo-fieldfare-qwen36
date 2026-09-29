@@ -4,6 +4,30 @@ import TurboFieldfare
 @testable import TurboFieldfareAppCore
 
 @Suite struct AppRuntimeOptionsTests {
+    @Test func inferenceExecutionModeDefaultsToTheDecodeService() {
+        let defaults = isolatedDefaults()
+        #expect(AppInferenceExecutionMode.selected(
+            environment: [:], defaults: defaults) == .decodeService)
+        #expect(AppInferenceExecutionMode.selected(environment: [
+            "TURBO_FIELDFARE_INFERENCE_MODE": "unexpected"
+        ], defaults: defaults) == .decodeService)
+    }
+
+    @Test func inProcessInferenceRequiresAnExplicitLaunchOverride() {
+        let defaults = isolatedDefaults()
+        #expect(AppInferenceExecutionMode.selected(environment: [
+            "TURBO_FIELDFARE_INFERENCE_MODE": "in-process"
+        ], defaults: defaults) == .inProcess)
+    }
+
+    @Test func inferenceExecutionModeUsesTheSavedPreference() {
+        let defaults = isolatedDefaults()
+        defaults.set(AppInferenceExecutionMode.inProcess.rawValue,
+                     forKey: AppInferenceExecutionMode.preferenceKey)
+        #expect(AppInferenceExecutionMode.selected(
+            environment: [:], defaults: defaults) == .inProcess)
+    }
+
     @Test func defaultsMatchProduction() throws {
         let options = AppRuntimeOptions()
         #expect(options.expertCacheSlots == 16)
@@ -17,6 +41,11 @@ import TurboFieldfare
         #expect(runtime == .production)
         #expect(options.resultSummary ==
             "Cache 16 LFU, prefill 128, FP16 KV, RDADVISE off, full SHA-256")
+    }
+
+    private func isolatedDefaults() -> UserDefaults {
+        let suite = "AppRuntimeOptionsTests.\(UUID().uuidString)"
+        return UserDefaults(suiteName: suite)!
     }
 
     @Test func everyPublicChoiceMapsToRuntime() throws {
@@ -38,6 +67,11 @@ import TurboFieldfare
             let runtime = try AppRuntimeOptions(rdadvisePolicy: policy)
                 .resolvedRuntimeConfiguration(forceLogitsHead: false)
             #expect(runtime.rdadvisePolicy == policy.runtimeValue)
+        }
+        for policy in AppExpertCachePolicy.allCases {
+            let runtime = try AppRuntimeOptions(expertCachePolicy: policy)
+                .resolvedRuntimeConfiguration(forceLogitsHead: false)
+            #expect(runtime.expertCachePolicy.rawValue == policy.rawValue)
         }
     }
 

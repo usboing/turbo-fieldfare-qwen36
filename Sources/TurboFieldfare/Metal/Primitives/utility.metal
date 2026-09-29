@@ -90,3 +90,17 @@ void residual_add_fp16(
     if (tid >= count) return;
     hidden[tid] = half(float(hidden[tid]) + float(delta[tid]));
 }
+
+// One tiny independent workload keeps the GPU clocked across expert I/O gaps.
+[[kernel, max_total_threads_per_threadgroup(32)]]
+void gpu_clock_hold(
+    device uint*   sink       [[buffer(0)]],
+    constant uint& iterations [[buffer(1)]],
+    uint           tid        [[thread_position_in_grid]]
+) {
+    uint acc = tid;
+    for (uint i = 0; i < iterations; i++) {
+        acc = acc * 1664525u + 1013904223u;
+    }
+    if (acc == 0xFFFFFFFFu) sink[0] = acc;
+}

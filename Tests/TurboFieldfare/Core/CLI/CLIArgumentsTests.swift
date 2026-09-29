@@ -87,6 +87,18 @@ import TurboFieldfare
         #expect(arguments.quiet)
     }
 
+    @Test func gpuClockHoldParsesAndReachesRuntime() throws {
+        for policy in RuntimeGPUClockHold.allCases {
+            let arguments = try Args.parse([
+                "--model", "m.gturbo", "--prompt", "hi",
+                "--gpu-clock-hold", policy.rawValue,
+            ])
+            #expect(arguments.gpuClockHold == policy)
+            let runtime = try arguments.resolvedRuntimeConfiguration(forceLogitsHead: false)
+            #expect(runtime.gpuClockHold == policy)
+        }
+    }
+
     @Test func topKZeroRequiresTopPToBeDisabled() throws {
         let disabled = try Args.parse([
             "--model", "m.gturbo", "--prompt", "hi",
@@ -116,7 +128,7 @@ import TurboFieldfare
             "--temperature", "--top-k", "--top-p", "--repetition-penalty",
             "--seed", "--stop", "--quiet", "--expert-cache-slots",
             "--expert-cache-policy", "--prefill", "--prefill-chunk-tokens",
-            "--rdadvise", "--help",
+            "--rdadvise", "--gpu-clock-hold", "--help",
             "--chat-prompt", "--image", "--vision-pack", "--vision-residency",
         ]
         let words = Args.usage.split { $0.isWhitespace || $0 == "(" || $0 == ")" }

@@ -88,8 +88,14 @@ struct TurboFieldfareMacApp: App {
     @StoredState private var model: AppModel
 
     init() {
+        let client: any AppModelLifecycleClient = switch AppInferenceExecutionMode.selected() {
+        case .decodeService:
+            DecodeServiceInferenceClient()
+        case .inProcess:
+            RealInferenceClient()
+        }
         let model = AppModel(
-            client: DecodeServiceInferenceClient(),
+            client: client,
             visionRuntimeSupported: AppModel.currentDeviceSupportsVisionRuntime,
             settingsPersistenceEnabled: true)
         _model = StoredState(initialValue: model)

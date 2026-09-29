@@ -78,7 +78,7 @@ public struct ServerArguments: Equatable, Sendable {
       --prompt-cache-mode <off|single-prefix>
                                  Prompt KV reuse mode (default single-prefix).
       --expert-cache-slots <n>   Expert-cache slots: \(RuntimeConfiguration.allowedValueList(RuntimeConfiguration.allowedExpertCacheSlots)) (default 16).
-      --expert-cache-policy <s>  Expert-cache policy: lfu or lru (default lfu).
+      --expert-cache-policy <s>  Expert-cache policy: lfu-aging, lfu, or lru (default lfu).
       --prefill on|off           Enable or disable chunked prompt prefill (default on).
                                  Chunked prefill requires 16 or more cache slots.
       --prefill-chunk-tokens <n|auto>
@@ -203,7 +203,7 @@ public struct ServerArguments: Equatable, Sendable {
                 expertCacheSlots = parsed
             case "--expert-cache-policy":
                 guard let parsed = RuntimeExpertCachePolicy(rawValue: value) else {
-                    throw ServerArgumentError.invalid("--expert-cache-policy must be lfu or lru")
+                    throw ServerArgumentError.invalid("--expert-cache-policy must be lfu-aging, lfu, or lru")
                 }
                 expertCachePolicy = parsed
             case "--prefill":

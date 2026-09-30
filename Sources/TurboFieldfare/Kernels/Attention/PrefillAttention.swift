@@ -61,9 +61,14 @@ final class PrefillAttention {
     private let psoCausalTiled: MTLComputePipelineState
     private let psoParamsSmoke: MTLComputePipelineState
     private let psoFullTensorOps2DValidityV2: MTLComputePipelineState?
+    private let psoQwenFullTensorOps2DValidityV1: MTLComputePipelineState?
 
     var tensorOps2DValidityV2Available: Bool {
         psoFullTensorOps2DValidityV2 != nil
+    }
+
+    var qwenTensorOps2DValidityV1Available: Bool {
+        psoQwenFullTensorOps2DValidityV1 != nil
     }
 
     convenience init(context: MetalContext) throws {
@@ -78,6 +83,7 @@ final class PrefillAttention {
         self.psoParamsSmoke = try context.pipeline("prefill_attention_params_smoke")
         if simulatingMissingTensorOps {
             self.psoFullTensorOps2DValidityV2 = nil
+            self.psoQwenFullTensorOps2DValidityV1 = nil
         } else {
             do {
                 self.psoFullTensorOps2DValidityV2 = try context.pipeline(
@@ -86,6 +92,15 @@ final class PrefillAttention {
                 self.psoFullTensorOps2DValidityV2 = nil
                 FileHandle.standardError.write(Data(
                     ("PrefillAttention: TensorOps 2D pipeline unavailable; "
+                     + "using causal-tiled fallback: \(error)\n").utf8))
+            }
+            do {
+                self.psoQwenFullTensorOps2DValidityV1 = try context.pipeline(
+                    "attention_prefill_full_tensorops_2d_qwen_validity_v1")
+            } catch {
+                self.psoQwenFullTensorOps2DValidityV1 = nil
+                FileHandle.standardError.write(Data(
+                    ("PrefillAttention: Qwen TensorOps 2D pipeline unavailable; "
                      + "using causal-tiled fallback: \(error)\n").utf8))
             }
         }
@@ -121,11 +136,17 @@ final class PrefillAttention {
             && layerKind == .full
             && kvRingCapacity == 0
             && windowNeverClips
-            && effectiveParams.headDim == 512
             && effectiveParams.numQHeads == 16
             && effectiveParams.numKVHeads == 2
-            && effectiveParams.scale == 1.0
-        let tensorOpsPipeline = tensorOpsShape ? psoFullTensorOps2DValidityV2 : nil
+            && (effectiveParams.headDim == 512 || effectiveParams.headDim == 256)
+        let tensorOpsPipeline: MTLComputePipelineState?
+        if tensorOpsShape && effectiveParams.headDim == 512 {
+            tensorOpsPipeline = psoFullTensorOps2DValidityV2
+        } else if tensorOpsShape && effectiveParams.headDim == 256 {
+            tensorOpsPipeline = psoQwenFullTensorOps2DValidityV1
+        } else {
+            tensorOpsPipeline = nil
+        }
         let useTensorOps = tensorOpsPipeline != nil
         let pipeline: MTLComputePipelineState
         if let tensorOpsPipeline {
@@ -135,7 +156,8 @@ final class PrefillAttention {
                 "TensorOps 2D prefill attention pipeline is unavailable on this Metal stack")
         } else {
             // Explicit mode also falls back for incompatible shapes. Benchmark
-            // fixtures must use 512/16/2 to prove that TensorOps ran.
+            // fixtures must use a supported 512/16/2 or 256/16/2 shape to
+            // prove that TensorOps ran.
             pipeline = causalTiledPipeline(kvRingCapacity: kvRingCapacity)
         }
         let headDim = Int(effectiveParams.headDim)

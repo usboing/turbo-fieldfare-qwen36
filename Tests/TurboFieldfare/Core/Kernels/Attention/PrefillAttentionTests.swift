@@ -168,6 +168,43 @@ import TurboFieldfareValidationSupport
                 "TensorOps 2D rel=\(rel) maxAbs=\(maxAbs) keys=\(visibleKeys)")
     }
 
+    @Test(arguments: [1, 63, 64, 65, 256, 257, 1_024, 1_025])
+    func qwenTensorOps2DFullAttentionMatchesReferenceAtTileBoundaries(
+        _ visibleKeys: Int
+    ) throws {
+        let context = try MetalContext()
+        let attention = try PrefillAttention(context: context)
+        guard attention.qwenTensorOps2DValidityV1Available else { return }
+        let fixture = Self.makeFixture(start: visibleKeys - 1,
+                                       chunk: 1,
+                                       window: 0,
+                                       seed: 0xA880 + UInt64(visibleKeys),
+                                       headDim: 256,
+                                       qHeads: 16,
+                                       kvHeads: 2,
+                                       scale: 0.0625)
+        let candidate = try Self.runKernel(
+            fixture,
+            path: .fullTensorOps2DValidityV2)
+        let repeated = try Self.runKernel(
+            fixture,
+            path: .fullTensorOps2DValidityV2)
+        let preferred = try Self.runKernel(
+            fixture,
+            path: .fullTensorOps2DPreferred)
+        let reference = Self.reference(fixture)
+        let maxAbs = RelError.maxAbsDiff(candidate, reference)
+        let rel = RelError.compute(actual: candidate, reference: reference)
+        #expect(candidate == repeated,
+                "Qwen TensorOps full attention is not byte-stable at \(visibleKeys) keys")
+        #expect(preferred == candidate,
+                "Qwen preferred attention did not select its TensorOps specialization")
+        #expect(maxAbs <= 2e-2,
+                "Qwen TensorOps maxAbs=\(maxAbs) rel=\(rel) keys=\(visibleKeys)")
+        #expect(rel <= 2e-2,
+                "Qwen TensorOps rel=\(rel) maxAbs=\(maxAbs) keys=\(visibleKeys)")
+    }
+
     @Test func preferredTensorOpsPathUsesSafeHardwareFallback() throws {
         let context = try MetalContext()
         let fixture = Self.makeFixture(start: 128,
@@ -248,7 +285,8 @@ import TurboFieldfareValidationSupport
                                     seed: UInt64,
                                     headDim: Int = 8,
                                     qHeads: Int = 4,
-                                    kvHeads: Int = 2) -> Fixture {
+                                    kvHeads: Int = 2,
+                                    scale: Float = 1.0) -> Fixture {
         let qStride = qHeads * headDim + 3
         let kvStride = kvHeads * headDim + 5
         let oStride = qHeads * headDim + 7
@@ -278,7 +316,7 @@ import TurboFieldfareValidationSupport
                        qStride: qStride, kvStride: kvStride, oStride: oStride,
                        headDim: headDim, qHeads: qHeads, kvHeads: kvHeads,
                        start: start, chunk: chunk, kvValid: kvValid,
-                       window: window, scale: 1.0)
+                       window: window, scale: scale)
     }
 
     @Test func prefillAttentionParamsLayoutMatchesMSL() throws {

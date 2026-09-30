@@ -86,3 +86,32 @@ quadratic curve. Extrapolating that measured curve puts a near-bound 32K run
 around 38–42 minutes and a 64K run around 2.5–3 hours. Those runs are deferred
 until the Qwen full-attention path is optimized; allocation and correctness do
 not justify spending hours re-measuring the known tiled-attention bottleneck.
+
+## Qwen TensorOps full attention
+
+The experimental Qwen specialization uses the existing TensorOps full-
+attention algorithm with Qwen's 256-wide heads, 16 query heads, two KV heads,
+and runtime attention scale. Focused boundary, reference, repeatability, and
+selection tests pass. Real-model runs used 4096-token chunks, a 16K context,
+64 LFU expert slots, FP16 KV, RDADVISE off, and one greedy output token.
+
+| Prompt | Tiled prefill wall | TensorOps prefill wall | Wall reduction | Tiled full attention | TensorOps full attention | Selected path |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Frozen long synthesis, 2,940 tokens | 35.46 s | 24.64 s | 30.5% | 11.65 s | 1.46 s | 10 TensorOps, 0 tiled |
+| Tripled document, 8,816 tokens | 232.53 s | 82.01 s | 64.7% | 157.59 s | 9.00 s | 30 TensorOps, 0 tiled |
+| Fivefold document, about 14.7K tokens | 570.42 s | 140.75 s | 75.3% | 453.56 s | 24.01 s | 40 TensorOps, 0 tiled |
+
+The 8,816-token run was 2.84x faster end to end, while its full-attention
+bucket fell by 94.3%. Peak footprint remained approximately 5.8 GB. The
+2,940-token deterministic one-token output also remained `Tur`, matching the
+tiled baseline. These results validate both selection and the expected
+long-context scaling benefit. The long-context gate has passed; the full
+1,426-test regression gate also passed. App-level quality and continuation
+checks are still required before promotion.
+
+The fivefold TensorOps fixture was reconstructed after its temporary file was
+cleared and tokenized to 14,652 tokens, four fewer than the earlier 14,656-token
+tiled fixture because the old copy separators were not preserved. The 0.03%
+prompt-length difference is immaterial to the 4.05x wall-time and 18.9x
+attention-time improvements, but it is recorded here rather than presented as
+an exact same-file comparison. Peak footprint was 5.77 GB.

@@ -26,12 +26,16 @@ validated separately.
    peak, but tiled full attention consumed 453.56 s (79.5%). Defer near-bound
    32K/64K timing until attention is optimized; current estimates are about
    40 minutes and 2.5–3 hours respectively.
-6. **In progress — Optimize the measured prefill bottleneck.** The attribution
-   selects Qwen-compatible TensorOps full attention; expert I/O is secondary
-   and DeltaNet scales approximately linearly.
-7. **Pending — Validate and promote the prefill winner.** Run quality,
-   continuation, long-context, memory, and full package gates before updating
-   the daily app.
+6. **Complete — Optimize the measured prefill bottleneck.** The attribution
+   selected Qwen-compatible TensorOps full attention. The first real-model
+   validations reduced 2,940-token prefill from 35.46 s to 24.64 s and
+   8,816-token prefill from 232.53 s to 82.01 s. All eligible attention layers
+   used TensorOps with no tiled fallback. An equivalent 14.7K-token fixture
+   fell from 570.42 s to 140.75 s (4.05x faster). The full 1,426-test package
+   gate passed.
+7. **In progress — Validate and promote the prefill winner.** Long-context,
+   memory, and full package gates pass. Run app-level quality and retained-KV
+   continuation checks before updating the daily app.
 8. **Pending — Benchmark the 0.8B Qwen MTP drafter in MLX.** Measure proposal
    speed, acceptance, memory, and end-to-end gain on this Mac.
 9. **Pending — Prototype and validate speculative decoding.** Add safe KV and

@@ -33,9 +33,11 @@ validated separately.
    used TensorOps with no tiled fallback. An equivalent 14.7K-token fixture
    fell from 570.42 s to 140.75 s (4.05x faster). The full 1,426-test package
    gate passed.
-7. **In progress — Validate and promote the prefill winner.** Long-context,
-   memory, and full package gates pass. Run app-level quality and retained-KV
-   continuation checks before updating the daily app.
+7. **Complete — Validate and promote the prefill winner.** Long-context,
+   memory, full package, real-output quality, and retained-KV continuation
+   gates pass. The continuation reused 76 cached tokens and followed its email
+   revision instructions. The release Mac app and decode service used by the
+   TurboFieldfare Qwen 3.6 launcher were rebuilt after validation.
 8. **Pending — Benchmark the 0.8B Qwen MTP drafter in MLX.** Measure proposal
    speed, acceptance, memory, and end-to-end gain on this Mac.
 9. **Pending — Prototype and validate speculative decoding.** Add safe KV and

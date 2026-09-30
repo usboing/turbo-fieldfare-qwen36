@@ -115,3 +115,23 @@ tiled fixture because the old copy separators were not preserved. The 0.03%
 prompt-length difference is immaterial to the 4.05x wall-time and 18.9x
 attention-time improvements, but it is recorded here rather than presented as
 an exact same-file comparison. Peak footprint was 5.77 GB.
+
+## Quality and continuation gate
+
+A deterministic 128-token generation from the 2,940-token frozen synthesis
+prompt remained coherent and correctly described the resident-versus-streamed
+runtime design. Prefill measured 24.56 s with 10 TensorOps and zero tiled
+dispatches; decode measured 14.66 tok/s.
+
+A real-model loopback-server continuation then exercised single-prefix KV
+reuse. The first email-drafting request reported zero cached tokens. A second
+request supplied the complete history and asked for a warmer revision without
+a subject line and with a reconnection sentence. It reused 76 cached tokens,
+returned in 3.56 s at the client, and followed all three revision instructions.
+The temporary server was stopped after the check.
+
+After these gates passed, the release `TurboFieldfareMac` and
+`TurboFieldfareDecodeService` products were rebuilt. The existing
+TurboFieldfare Qwen 3.6 launcher continues to target those repository release
+products, so no launcher or model installation was rewritten. The app remained
+closed after the promotion build.

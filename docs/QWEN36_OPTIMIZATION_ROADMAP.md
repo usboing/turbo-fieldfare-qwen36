@@ -38,8 +38,13 @@ validated separately.
    gates pass. The continuation reused 76 cached tokens and followed its email
    revision instructions. The release Mac app and decode service used by the
    TurboFieldfare Qwen 3.6 launcher were rebuilt after validation.
-8. **Pending — Benchmark the 0.8B Qwen MTP drafter in MLX.** Measure proposal
-   speed, acceptance, memory, and end-to-end gain on this Mac.
+8. **In progress — Benchmark the 0.8B Qwen MTP drafter in MLX.** The official
+   4-bit drafter is 0.495 GB but requires a separate compatible 20.43 GB MLX
+   target. MLX is not installed and the Mac currently has 33 GiB free; an
+   existing 20 GB Qwen GGUF cache could be replaced rather than keeping both.
+   After the storage choice, measure proposal speed, acceptance, memory,
+   end-to-end gain, and greedy-output equivalence because upstream speculative
+   decoding has had correctness regressions.
 9. **Pending — Prototype and validate speculative decoding.** Add safe KV and
    DeltaNet rollback, batched verification, sampling, cancellation, and
    conversation tests only if the feasibility result is worthwhile.

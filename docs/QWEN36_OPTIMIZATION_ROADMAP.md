@@ -38,15 +38,20 @@ validated separately.
    gates pass. The continuation reused 76 cached tokens and followed its email
    revision instructions. The release Mac app and decode service used by the
    TurboFieldfare Qwen 3.6 launcher were rebuilt after validation.
-8. **In progress — Benchmark the 0.8B Qwen MTP drafter in MLX.** The official
-   4-bit drafter is 0.495 GB but requires a separate compatible 20.43 GB MLX
-   target. MLX is not installed and the Mac currently has 33 GiB free; an
-   existing 20 GB Qwen GGUF cache could be replaced rather than keeping both.
-   After the storage choice, measure proposal speed, acceptance, memory,
-   end-to-end gain, and greedy-output equivalence because upstream speculative
-   decoding has had correctness regressions.
-9. **Pending — Prototype and validate speculative decoding.** Add safe KV and
-   DeltaNet rollback, batched verification, sampling, cancellation, and
-   conversation tests only if the feasibility result is worthwhile.
-10. **Pending — Promote the final stable build.** Keep normal decoding and the
-    2048 prefill path as fallbacks, document the result, and update the app.
+8. **Complete — Benchmark the 0.8B Qwen MTP drafter in MLX.** The official
+   20.43 GB target did not fit fully resident on the 24 GB M3 Air, so the test
+   used mlx-vlm 0.7.6's MoE-offload format with a 4 GB expert cache. MTP was
+   11.5% slower on explanatory prose (70% draft acceptance), 2.1% slower on a
+   realistic email reply (84.3%), and 6.2% faster only on deterministic
+   counting (100%). Peak memory rose by about 0.58 GB. Greedy prose and email
+   output diverged from ordinary decoding at temperature zero. See
+   `QWEN36_MTP_FEASIBILITY.md`.
+9. **Deferred — Prototype speculative decoding.** The feasibility gate did
+   not show a robust end-to-end win for the target workflow and did not meet
+   the greedy-equivalence safety gate. Revisit only after the runtime has a
+   materially cheaper verifier/drafter path or upstream exactness improves.
+10. **Complete — Keep the promoted stable build.** The MTP experiment did not
+    modify the app and failed its promotion gate, so the existing TensorOps
+    prefill build with normal decoding, selectable 2048/4096 chunks, and the
+    established fallbacks remains the final Qwen 3.6 build. No rebuild was
+    required after the feasibility benchmark.

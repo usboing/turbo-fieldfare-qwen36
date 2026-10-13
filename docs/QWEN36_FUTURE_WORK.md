@@ -26,3 +26,26 @@ and release work as the next project phase.
   behavior before implementation.
 - Validate retained-KV behavior and prompt caching when instructions or memory
   change between turns.
+
+## Chat history
+
+- Provide a persistent, browsable history of previous chats.
+- Support reopening, renaming, searching, and deleting conversations.
+- Define retention and storage controls separately from long-term memory.
+- Preserve compatibility with existing conversation files and migrations.
+
+## Window layouts
+
+- Add convenient window-size presets for half-screen and one-third-screen
+  layouts.
+- Ensure the chat, composer, model status, and settings remain usable at each
+  supported width.
+- Preserve the user's chosen size and position across launches when possible.
+
+## Upstream review
+
+- Check the upstream and original Qwen-port repositories for new relevant pull
+  requests or changes since the last review.
+- Compare any new work with the rebased implementation before publishing.
+- Record whether useful fixes, performance improvements, or compatibility
+  changes should be incorporated.

@@ -32,7 +32,7 @@ model, so an unsupported combination fails immediately with the usage text.
 
 | Control | Mac values | CLI and server flag | Production default | Effect |
 | --- | --- | --- | --- | --- |
-| Expert-cache slots | 8, 16, 24, 32 | `--expert-cache-slots` | 16 | More slots can retain more routed experts and reduce later reads, but values above 16 use more RAM. Chunked prefill requires at least 16 slots. |
+| Expert-cache slots | 8, 16, 24, 32, 64 | `--expert-cache-slots` | 16 | More slots can retain more routed experts and reduce later reads, but values above 16 use more RAM. Chunked prefill requires at least 16 slots. The 64-slot option is intended for Qwen on higher-memory Macs. |
 | Expert-cache policy | LFU | `--expert-cache-policy lfu\|lru` | LFU | Chooses which expert is evicted when the cache is full. |
 | Prompt prefill | On, off | `--prefill on\|off` | On | On processes known prompt tokens through the chunked prefill path. Off disables that path. |
 | Prefill chunk size | 128, 256, 512, 768, 1024, 1536, 2048, 4096 | `--prefill-chunk-tokens 32\|64\|128\|256\|512\|768\|1024\|1536\|2048\|4096\|auto` | 128 | Sets the number of prompt tokens processed by each chunked-prefill step, and has no effect while prefill is off. Chunks loop outside layers, so each one re-reads that layer's routed experts: fewer, larger chunks read less. `auto` picks the smallest size that covers the prompt. On the server `auto` is the cap, 4096: a per-request size is the smallest allowed size covering the span, so the cap prefills every prompt in exactly those spans, and the KV ring is sized from the cap either way. Only the prefill scratch is sized from the chunk, at about 125.5 KB per token over a fixed 328 KB, so the cap holds about 514.3 MB of it against 16.4 MB at 128, and a per-request size would reallocate it whenever the chosen size moved. Values above 512 are experimental. |
@@ -148,9 +148,10 @@ KV cache is allocated when the model loads, even if the conversation is empty.
 The server also offers 96K and 192K.
 
 The memory check includes the KV cache, 2 GiB for the runtime with 16
-expert-cache slots, and 3 GiB for macOS and the file cache. Choosing 24 or 32
-slots adds about 0.75 or 1.50 GiB. On an 8 GB Mac, neither leaves enough room
-for 128K under this estimate.
+expert-cache slots, and 3 GiB for macOS and the file cache. Choosing 24, 32,
+or 64 slots adds progressively more resident capacity; the app displays the
+model-specific estimate before reload. On an 8 GB Mac, larger caches leave
+less room for long contexts and other applications.
 
 When a setting exceeds the estimate:
 

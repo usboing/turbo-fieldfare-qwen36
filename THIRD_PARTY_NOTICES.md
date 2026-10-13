@@ -24,6 +24,20 @@ Google publishes Gemma 4 under the
 Downloaded weights remain a separate work governed by their source terms. Do
 not redistribute weights as part of TurboFieldfare releases.
 
+The Qwen installer downloads the pinned revision
+`38740b847e4cb78f352aba30aa41c76e08e6eb46` of
+[`mlx-community/Qwen3.6-35B-A3B-4bit`](https://huggingface.co/mlx-community/Qwen3.6-35B-A3B-4bit)
+and repacks it locally. The quantized checkpoint identifies itself as an
+Apache-2.0 conversion of
+[`Qwen/Qwen3.6-35B-A3B`](https://huggingface.co/Qwen/Qwen3.6-35B-A3B), whose
+model card also identifies the model license as Apache-2.0. Qwen weights are
+not included in this repository or in source releases.
+
+The first Qwen architecture port was authored by NeelM0906 and is tracked in
+[upstream pull request #29](https://github.com/drumih/turbo-fieldfare/pull/29).
+The rebased branch preserves that authorship in its source history; subsequent
+M3 Air profiling and optimization work is documented under `docs/QWEN36_*`.
+
 ## Swift package graph
 
 The following table covers the complete graph reported by

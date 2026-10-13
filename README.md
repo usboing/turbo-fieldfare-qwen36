@@ -5,8 +5,8 @@
 <h1 align="center">TurboFieldfare</h1>
 
 <p align="center">
-  <strong>Gemma 4 26B-A4B inference in about 2 GB of RAM</strong><br>
-  A custom Swift + Metal runtime for any Apple Silicon Mac, even the 8 GB ones.
+  <strong>Gemma 4 and Qwen 3.6 sparse-MoE inference on Apple Silicon</strong><br>
+  A bounded-memory Swift + Metal runtime that streams routed experts from SSD.
 </p>
 
 <p align="center">
@@ -28,7 +28,9 @@
 
 ![TurboFieldfare Mac app generating text with Gemma 4 26B-A4B](docs/assets/turbofieldfare-app.webp)
 
-Memory got expensive. So I gave a 26-billion-parameter model a ~2 GB budget.
+Memory got expensive. So TurboFieldfare gives large sparse-MoE models a
+bounded resident-memory budget and streams the routed experts they need from
+SSD.
 
 TurboFieldfare runs the instruction-tuned
 **[Gemma 4 26B-A4B](https://ai.google.dev/gemma/docs/core/model_card_4)**
@@ -42,6 +44,15 @@ and Metal. TurboFieldfare is model-specific rather than a wrapper around MLX or
 llama.cpp. The curated [experiment record](docs/experiments/EXPERIMENT_INVENTORY.md)
 summarizes 103 measured results across kernels, caching, I/O, prefill, and
 decode.
+
+This branch adds **Qwen 3.6 35B-A3B** as a first-class second architecture,
+rebased onto TurboFieldfare 0.9.1. It builds on
+[NeelM0906's original Qwen port](https://github.com/drumih/turbo-fieldfare/pull/29)
+and adds the M3 Air work described in the
+[Qwen optimization roadmap](docs/QWEN36_OPTIMIZATION_ROADMAP.md): a 64-slot
+expert cache option, larger selectable prefill chunks, detailed phase
+diagnostics, fast in-process app inference, and a Qwen-specific TensorOps
+full-attention prefill path.
 
 ## Try it
 
@@ -60,6 +71,17 @@ When the app opens, choose **Download** and let TurboFieldfare fetch and repack
 the pinned model (about 15 GB). Once it is ready, choose **Load Model**, type
 your prompt, and press **Generate**.
 
+To start the Mac app with Qwen 3.6 instead of Gemma 4, save the model choice
+before launching it:
+
+```bash
+defaults write TurboFieldfare model qwen36
+.build/release/TurboFieldfareMac
+```
+
+The Qwen text model downloads about 19.5 GB. Model weights are not stored in
+this repository.
+
 ## At a glance
 
 | Metric          | Value                                                                                                                    |
@@ -74,6 +96,7 @@ your prompt, and press **Generate**.
 | M5 measured decode | [31-35 tok/s](docs/BENCHMARKS.md#m5-measured-decode) on a 24 GB M5 Pro |
 | Community Reports | [Here](docs/COMMUNITY_BENCHMARKS.md#community-results) |
 | M5 measured decode, Qwen 3.6 | [18.8-23.1 tok/s](docs/BENCHMARKS.md#qwen-36-35b-a3b-measured-decode) at ~1.45 GB footprint |
+| M3 Air optimized Qwen profile | [16.3 tok/s interactive decode; up to 75% lower long-prompt prefill wall time](docs/QWEN36_RELEASE_NOTES.md#m3-air-results) with 64 slots and TensorOps prefill |
 
 The measured result is a reference point, not a performance ceiling. Prompt
 length, generated length, page-cache state, and hardware all affect throughput.
@@ -340,8 +363,10 @@ the layer's 16-slot LFU cache, then fills misses with bounded parallel `pread`
 calls into Metal-visible buffers. Metal computes the resident shared-expert
 branch while those reads run, then combines the shared and routed outputs.
 
-Prompt prefill uses chunks of up to 128 tokens so one fetched expert can serve
-multiple rows. Generation repeats the routed layer loop one token at a time.
+Prompt prefill uses bounded, selectable chunks so one fetched expert can serve
+multiple rows. The production default remains 128 tokens; this Qwen branch
+also exposes 256 through 4096 tokens for machines with enough unified memory.
+Generation repeats the routed layer loop one token at a time.
 The installer applies the same bounded-memory rule: it repacks remote ranges
 directly into `.gturbo` without staging a full shard or tensor.
 
@@ -381,7 +406,8 @@ TurboFieldfare currently includes:
 
 Current scope is text input from the pinned Gemma 4 26B-A4B instruction
 checkpoint on Apple Silicon Macs with at least 8 GB of RAM, plus image input
-on M2 or newer Macs. Audio and video are out of scope.
+on M2 or newer Macs. Qwen 3.6 support is text-only in this branch. Audio and
+video are out of scope.
 
 ### Qwen 3.6 35B-A3B
 
@@ -407,6 +433,10 @@ swift run -c release TurboFieldfareCLI \
 The Mac app selects Qwen with `TURBO_FIELDFARE_MODEL=qwen36` in the
 environment; the server auto-detects the installed model and serves it as
 `qwen3.6-35b-a3b` with the ChatML template and Qwen tool-call format.
+
+For a persistent GUI choice, run `defaults write TurboFieldfare model qwen36`
+once before opening the app. The model is installed at
+`scratch/qwen36.gturbo` unless a model-path override is supplied.
 
 Measured on an M5 following the
 [community benchmark protocol](docs/COMMUNITY_BENCHMARKS.md) — the three frozen
@@ -459,7 +489,7 @@ source terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the model
 and Swift package license review.
 
 TurboFieldfare is an independent research project. It is not affiliated with,
-sponsored by, or endorsed by Google.
+sponsored by, or endorsed by Google, Qwen, Alibaba, or Apple.
 
 ## Afterword and the project name
 

@@ -96,8 +96,9 @@ Each of these was measured before being ruled out.
 - **Expert cache hit rate.** Raising slots from 16 to 24 to 32 moved decode
   from 19.0 to 19.6 to 19.8 tok/s. With 256 experts per layer the hit rate is
   low at any slot count the memory budget allows, and prior work already
-  found LFU within ~8 percentage points of Belady's optimal. Slot counts
-  above 32 are not offered: the 2 GB footprint is a product requirement.
+  found LFU within ~8 percentage points of Belady's optimal. Later M3 Air work
+  added a 64-slot option for higher-memory Macs; it is not part of the original
+  ~2 GB profile measured in this section.
 - **RDADVISE read-ahead.** `--rdadvise default` cut the I/O await from 3474 to
   2931 ms, but the synchronous advice calls cost what the reads saved; total
   decode was unchanged (19.3 vs 19.3 tok/s). It stays off by default.
@@ -170,5 +171,5 @@ TURBO_FIELDFARE_PHASES=1 .build/release/TurboFieldfareCLI \
   --max-new 128 --temperature 0
 ```
 
-`--expert-cache-slots` (8, 16, 24, 32) and `--rdadvise`
+`--expert-cache-slots` (8, 16, 24, 32, 64) and `--rdadvise`
 (off, default, bounded, adaptive) vary the two policies discussed above.

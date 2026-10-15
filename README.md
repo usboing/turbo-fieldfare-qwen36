@@ -57,8 +57,8 @@ full-attention prefill path.
 ## Try it
 
 ```bash
-git clone https://github.com/drumih/turbo-fieldfare.git
-cd turbo-fieldfare
+git clone https://github.com/usboing/turbo-fieldfare-qwen36.git
+cd turbo-fieldfare-qwen36
 swift build -c release
 .build/release/TurboFieldfareMac
 ```
